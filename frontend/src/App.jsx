@@ -45,6 +45,46 @@ const router = createBrowserRouter([
     )
   },
   {
+    path: '/products',
+    element: (
+      <SignedIn>
+        <Products />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/orders',
+    element: (
+      <SignedIn>
+        <Orders />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/customers',
+    element: (
+      <SignedIn>
+        <Customers />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/reports',
+    element: (
+      <SignedIn>
+        <Reports />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/settings',
+    element: (
+      <SignedIn>
+        <Settings />
+      </SignedIn>
+    )
+  },
+  {
     path: '/protected',
     element: (
       <SignedOut>
