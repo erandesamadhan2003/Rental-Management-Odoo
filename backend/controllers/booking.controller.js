@@ -3,161 +3,15 @@ import Payment from "../models/payment.model.js";
 import User from "../models/user.js";
 import Notification from "../models/notification.model.js";
 import NotificationService from "../services/notification.service.js";
-import { createStripePaymentIntent, confirmStripePayment, createStripeTransfer, refundStripePayment } from "../services/payment.service.js";
-import { sendEmail, generateOTP, sendDeliveryReturnOTP } from '../services/email.service.js';
+import { createPaymentIntent, createCheckoutSession, confirmPayment, retrieveCheckoutSession } from "../services/stripe.service.js";
+import { sendEmail } from '../services/email.service.js';
 import { createInvoiceForBooking } from './invoice.controller.js';
-import mongoose from "mongoose";
 
 // Calculate platform fee (10% default) and owner amount
 const calculateAmounts = (totalPrice) => {
   const platformFee = Math.round(totalPrice * 0.1); // 10%
   const ownerAmount = totalPrice - platformFee;
   return { platformFee, ownerAmount };
-};
-
-// Send payment confirmation email
-const sendPaymentConfirmationEmail = async (booking, payment) => {
-  try {
-    const { renterId, ownerId, productId, startDate, endDate, totalPrice } = booking;
-    
-    // Get renter and owner details
-    const [renter, owner] = await Promise.all([
-      User.findById(renterId),
-      User.findById(ownerId)
-    ]);
-    
-    if (!renter || !owner) {
-      console.error('Could not find renter or owner for payment confirmation email');
-      return;
-    }
-    
-    // Format dates
-    const formattedStartDate = new Date(startDate).toLocaleDateString();
-    const formattedEndDate = new Date(endDate).toLocaleDateString();
-    
-    // Send email to renter
-    await sendEmail({
-      to: renter.email,
-      subject: 'Payment Confirmation - Your Rental is Confirmed!',
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Payment Confirmation</title>
-          <style>
-            body { font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; background: #f4f4f4; margin: 0; padding: 0; }
-            .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
-            .header { background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; text-align: center; }
-            .header h1 { margin: 0; font-size: 24px; }
-            .content { padding: 40px; }
-            .booking-details { background: #f0fdf4; border: 1px solid #d1fae5; border-radius: 10px; padding: 20px; margin: 20px 0; }
-            .footer { background: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; }
-            .button { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Payment Confirmation</h1>
-              <p>Your rental is confirmed!</p>
-            </div>
-            
-            <div class="content">
-              <h2>Hello ${renter.firstName || renter.username},</h2>
-              
-              <p>Your payment of ₹${totalPrice} has been successfully processed. Your rental is now confirmed!</p>
-              
-              <div class="booking-details">
-                <h3>Booking Details:</h3>
-                <p><strong>Product:</strong> ${productId.title}</p>
-                <p><strong>Rental Period:</strong> ${formattedStartDate} to ${formattedEndDate}</p>
-                <p><strong>Owner:</strong> ${owner.firstName || owner.username}</p>
-                <p><strong>Total Amount Paid:</strong> ₹${totalPrice}</p>
-                <p><strong>Payment ID:</strong> ${payment.gatewayPaymentId}</p>
-              </div>
-              
-              <p>An invoice has been generated and is available in your account. You can also download it from the booking details page.</p>
-              
-              <p>If you have any questions about your rental, please contact us or the owner directly.</p>
-              
-              <p>Thank you for using our platform!</p>
-              
-              <p>Best regards,<br>
-              <strong>Rental Management Team</strong></p>
-            </div>
-            
-            <div class="footer">
-              <p>© ${new Date().getFullYear()} Rental Management System. All rights reserved.</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `
-    });
-    
-    // Send email to owner
-    await sendEmail({
-      to: owner.email,
-      subject: 'New Rental Payment Received',
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>New Rental Payment</title>
-          <style>
-            body { font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; background: #f4f4f4; margin: 0; padding: 0; }
-            .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
-            .header { background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; text-align: center; }
-            .header h1 { margin: 0; font-size: 24px; }
-            .content { padding: 40px; }
-            .booking-details { background: #f0fdf4; border: 1px solid #d1fae5; border-radius: 10px; padding: 20px; margin: 20px 0; }
-            .footer { background: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>New Rental Payment</h1>
-              <p>You've received a payment for your rental item</p>
-            </div>
-            
-            <div class="content">
-              <h2>Hello ${owner.firstName || owner.username},</h2>
-              
-              <p>Good news! A payment of ₹${booking.ownerAmount} (after platform fee) has been received for your rental item.</p>
-              
-              <div class="booking-details">
-                <h3>Booking Details:</h3>
-                <p><strong>Product:</strong> ${productId.title}</p>
-                <p><strong>Rental Period:</strong> ${formattedStartDate} to ${formattedEndDate}</p>
-                <p><strong>Renter:</strong> ${renter.firstName || renter.username}</p>
-                <p><strong>Total Rental Amount:</strong> ₹${totalPrice}</p>
-                <p><strong>Your Earnings (after platform fee):</strong> ₹${booking.ownerAmount}</p>
-              </div>
-              
-              <p>Please prepare the item for pickup according to the agreed schedule. The funds will be transferred to your account after the rental is confirmed.</p>
-              
-              <p>Thank you for using our platform!</p>
-              
-              <p>Best regards,<br>
-              <strong>Rental Management Team</strong></p>
-            </div>
-            
-            <div class="footer">
-              <p>© ${new Date().getFullYear()} Rental Management System. All rights reserved.</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `
-    });
-    
-    console.log('Payment confirmation emails sent successfully');
-  } catch (error) {
-    console.error('Error sending payment confirmation emails:', error);
-  }
 };
 
 // Get booking by ID
@@ -504,64 +358,276 @@ export const rejectRentalRequest = async (req, res) => {
   }
 };
 
-// Start payment for a booking - redirects to payment controller
+// Start payment process with Stripe
 export const initiateBookingPayment = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const booking = await Booking.findById(bookingId);
-    if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
+    const { paymentMethod = 'card' } = req.body;
+    
+    const booking = await Booking.findById(bookingId)
+      .populate('productId', 'title description images')
+      .populate('renterId', 'email firstName lastName')
+      .populate('ownerId', 'email firstName lastName');
+      
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
 
-    // Redirect to the payment controller's initiatePayment endpoint
-    req.body.bookingId = bookingId;
-    req.body.amount = booking.totalPrice;
-    req.body.currency = 'inr';
-    
-    // Forward the request to the payment controller using axios
-    const axios = (await import('axios')).default;
-    const response = await axios.post(
-      `${req.protocol}://${req.get('host')}/api/payments/initiate`,
-      req.body
-    );
-    
-    res.status(response.status).json(response.data);
+    if (booking.status !== "pending_payment") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Booking is not ready for payment" 
+      });
+    }
+
+    if (paymentMethod === 'checkout') {
+      // Create Stripe Checkout Session
+      const checkoutData = {
+        productName: booking.productId.title || 'Equipment Rental',
+        productDescription: `Rental from ${booking.startDate.toDateString()} to ${booking.endDate.toDateString()}`,
+        amount: booking.totalPrice,
+        currency: 'usd',
+        bookingId: booking._id,
+        successUrl: `${process.env.CLIENT_URL}/payment/success`,
+        cancelUrl: `${process.env.CLIENT_URL}/payment/cancel`,
+        customerEmail: booking.renterId.email,
+      };
+
+      const session = await createCheckoutSession(checkoutData);
+      
+      if (!session.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Failed to create payment session",
+          error: session.error
+        });
+      }
+
+      // Save session ID to booking
+      booking.stripeSessionId = session.sessionId;
+      booking.paymentStatus = "pending";
+      await booking.save();
+
+      return res.json({
+        success: true,
+        sessionId: session.sessionId,
+        checkoutUrl: session.url,
+        message: "Checkout session created successfully"
+      });
+    } else {
+      // Create Payment Intent for card payments
+      const paymentIntent = await createPaymentIntent(
+        booking.totalPrice,
+        'usd',
+        {
+          bookingId: booking._id.toString(),
+          renterId: booking.renterId._id.toString(),
+          ownerId: booking.ownerId._id.toString(),
+          productId: booking.productId._id.toString()
+        }
+      );
+
+      if (!paymentIntent.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Failed to create payment intent",
+          error: paymentIntent.error
+        });
+      }
+
+      // Save payment intent ID to booking
+      booking.stripePaymentIntentId = paymentIntent.paymentIntentId;
+      booking.paymentStatus = "pending";
+      await booking.save();
+
+      return res.json({
+        success: true,
+        clientSecret: paymentIntent.clientSecret,
+        paymentIntentId: paymentIntent.paymentIntentId,
+        amount: booking.totalPrice,
+        message: "Payment intent created successfully"
+      });
+    }
   } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to initiate payment", error: error.message });
+    console.error('Payment initiation error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to initiate payment", 
+      error: error.message 
+    });
   }
 };
 
-// Confirm payment - redirects to payment controller
+// Confirm payment after Stripe processing
 export const confirmBookingPayment = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const { paymentIntentId } = req.body;
-    
-    if (!paymentIntentId) {
-      return res.status(400).json({ success: false, message: 'Payment intent ID is required' });
-    }
-    
-    const booking = await Booking.findById(bookingId);
+    const { paymentIntentId, sessionId } = req.body;
+
+    const booking = await Booking.findById(bookingId)
+      .populate('productId', 'title')
+      .populate('renterId', 'email firstName lastName')
+      .populate('ownerId', 'email firstName lastName');
+      
     if (!booking) {
-      return res.status(404).json({ success: false, message: 'Booking not found' });
+      return res.status(404).json({ success: false, message: "Booking not found" });
     }
-    
-    if (booking.status !== "pending_payment") {
-      return res.status(400).json({ success: false, message: "Booking is not ready for payment" });
+
+    let paymentData = null;
+
+    if (sessionId) {
+      // Handle Checkout Session confirmation
+      const sessionResult = await retrieveCheckoutSession(sessionId);
+      
+      if (!sessionResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Failed to retrieve checkout session",
+          error: sessionResult.error
+        });
+      }
+
+      if (sessionResult.session.payment_status !== 'paid') {
+        return res.status(400).json({
+          success: false,
+          message: "Payment not completed",
+          status: sessionResult.session.payment_status
+        });
+      }
+
+      paymentData = sessionResult.session;
+    } else if (paymentIntentId) {
+      // Handle Payment Intent confirmation
+      const paymentResult = await confirmPayment(paymentIntentId);
+      
+      if (!paymentResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Failed to confirm payment",
+          error: paymentResult.error
+        });
+      }
+
+      if (paymentResult.status !== 'succeeded') {
+        return res.status(400).json({
+          success: false,
+          message: "Payment not successful",
+          status: paymentResult.status
+        });
+      }
+
+      paymentData = paymentResult.paymentIntent;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Payment ID or Session ID is required"
+      });
     }
-    
-    // Redirect to the payment controller's confirmPayment endpoint
-    req.body.bookingId = bookingId;
-    
-    // Forward the request to the payment controller using axios
-    const axios = (await import('axios')).default;
-    const response = await axios.post(
-      `${req.protocol}://${req.get('host')}/api/payments/confirm`,
-      req.body
-    );
-    
-    res.status(response.status).json(response.data);
+
+    // Create payment record
+    const payment = await Payment.create({
+      bookingId,
+      renterId: booking.renterId._id,
+      renterClerkId: booking.renterClerkId,
+      ownerId: booking.ownerId._id,
+      ownerClerkId: booking.ownerClerkId,
+      paymentGateway: "stripe",
+      gatewayPaymentId: paymentData.id || paymentData.payment_intent,
+      amount: booking.totalPrice,
+      currency: "usd",
+      platformFee: booking.platformFee,
+      ownerAmount: booking.ownerAmount,
+      paymentStatus: "successful",
+      paymentDate: new Date(),
+      metadata: {
+        stripeSessionId: sessionId,
+        stripePaymentIntentId: paymentIntentId
+      }
+    });
+
+    // Update booking status
+    booking.paymentStatus = "paid";
+    booking.status = "confirmed";
+    booking.paymentId = payment._id;
+    await booking.save();
+
+    // Create invoice for the payment
+    let invoice = null;
+    try {
+      invoice = await createInvoiceForBooking(booking._id);
+    } catch (invoiceError) {
+      console.error('Failed to create invoice:', invoiceError);
+    }
+
+    // Create notifications
+    try {
+      // Notify the renter about successful payment
+      await NotificationService.createPaymentConfirmationNotification({
+        userClerkId: booking.renterClerkId,
+        amount: booking.totalPrice,
+        method: 'Credit Card',
+        bookingId: booking._id,
+        productTitle: booking.productId?.title || 'Rental Item'
+      });
+
+      // Notify the owner about confirmed booking
+      await NotificationService.createBookingStatusNotification({
+        userClerkId: booking.ownerClerkId,
+        status: 'confirmed',
+        productTitle: booking.productId?.title || 'Your Product',
+        bookingId: booking._id
+      });
+    } catch (notificationError) {
+      console.error('Failed to create payment notifications:', notificationError);
+    }
+
+    // Send email notifications
+    try {
+      // Email to renter
+      await sendEmail({
+        to: booking.renterId.email,
+        subject: `Payment Confirmed - ${booking.productId?.title}`,
+        html: `
+          <h2>Payment Successful!</h2>
+          <p>Your payment for <strong>${booking.productId?.title}</strong> has been processed successfully.</p>
+          <p><strong>Amount Paid:</strong> $${booking.totalPrice.toFixed(2)}</p>
+          <p><strong>Booking ID:</strong> ${booking._id}</p>
+          <p><strong>Rental Period:</strong> ${booking.startDate.toDateString()} to ${booking.endDate.toDateString()}</p>
+          <p>The owner will contact you soon with pickup/delivery details.</p>
+        `
+      });
+
+      // Email to owner
+      await sendEmail({
+        to: booking.ownerId.email,
+        subject: `Booking Confirmed - ${booking.productId?.title}`,
+        html: `
+          <h2>Booking Confirmed!</h2>
+          <p>Payment for your product <strong>${booking.productId?.title}</strong> has been received.</p>
+          <p><strong>Renter:</strong> ${booking.renterId.firstName} ${booking.renterId.lastName}</p>
+          <p><strong>Amount:</strong> $${booking.ownerAmount.toFixed(2)} (after platform fee)</p>
+          <p><strong>Rental Period:</strong> ${booking.startDate.toDateString()} to ${booking.endDate.toDateString()}</p>
+          <p>Please prepare the item and contact the renter at ${booking.renterId.email} for pickup/delivery arrangements.</p>
+        `
+      });
+    } catch (emailError) {
+      console.error('Failed to send email notifications:', emailError);
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Payment confirmed successfully",
+      booking, 
+      payment,
+      invoice: invoice || null
+    });
   } catch (error) {
-    console.error('Error confirming payment:', error);
-    res.status(500).json({ success: false, message: 'Failed to confirm payment', error: error.message });
+    console.error('Payment confirmation error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Payment confirmation failed", 
+      error: error.message 
+    });
   }
 };
 
@@ -633,352 +699,7 @@ export const confirmPickup = async (req, res) => {
   }
 };
 
-// Generate OTP for delivery verification
-export const generateDeliveryOTP = async (req, res) => {
-  try {
-    const { bookingId } = req.params;
-    const { userType } = req.body; // 'owner' or 'renter'
-    
-    const booking = await Booking.findById(bookingId)
-      .populate('productId', 'title')
-      .populate('renterId', 'email firstName lastName username')
-      .populate('ownerId', 'email firstName lastName username');
-    
-    if (!booking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-    
-    if (booking.status !== "confirmed" && booking.status !== "in_rental") {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Booking must be confirmed or in rental state for delivery verification" 
-      });
-    }
-    
-    // Generate OTP
-    const otp = generateOTP();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10); // OTP valid for 10 minutes
-    
-    // Check if an active OTP already exists
-    const existingOTP = await mongoose.model('OTP').findOne({
-      bookingId: booking._id,
-      type: "delivery",
-      expiresAt: { $gt: new Date() }
-    });
-    
-    if (existingOTP) {
-      // Update existing OTP
-      existingOTP.otp = otp;
-      existingOTP.expiresAt = expiresAt;
-      existingOTP.ownerVerified = false;
-      existingOTP.renterVerified = false;
-      await existingOTP.save();
-    } else {
-      // Create new OTP record
-      await mongoose.model('OTP').create({
-        bookingId: booking._id,
-        otp,
-        type: "delivery",
-        expiresAt
-      });
-    }
-    
-    // Determine recipient based on userType
-    const recipient = userType === 'owner' ? booking.ownerId : booking.renterId;
-    const recipientName = recipient.firstName || recipient.username;
-    
-    // Send OTP via email
-    await sendDeliveryReturnOTP(
-      recipient.email,
-      otp,
-      recipientName,
-      booking.productId.title,
-      true // isDelivery = true
-    );
-    
-    res.json({ 
-      success: true, 
-      message: `Delivery verification OTP sent to ${userType}`,
-      expiresAt
-    });
-  } catch (error) {
-    console.error('Error generating delivery OTP:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to generate delivery OTP", 
-      error: error.message 
-    });
-  }
-};
-
-// Verify delivery OTP
-export const verifyDeliveryOTP = async (req, res) => {
-  try {
-    const { bookingId } = req.params;
-    const { otp, userType } = req.body; // 'owner' or 'renter'
-    
-    const booking = await Booking.findById(bookingId);
-    if (!booking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-    
-    // Find active OTP for this booking
-    const otpRecord = await mongoose.model('OTP').findOne({
-      bookingId: booking._id,
-      type: "delivery",
-      otp,
-      expiresAt: { $gt: new Date() }
-    });
-    
-    if (!otpRecord) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid or expired OTP" 
-      });
-    }
-    
-    // Update verification status based on user type
-    if (userType === 'owner') {
-      otpRecord.ownerVerified = true;
-    } else if (userType === 'renter') {
-      otpRecord.renterVerified = true;
-    } else {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid user type" 
-      });
-    }
-    
-    await otpRecord.save();
-    
-    // Check if both owner and renter have verified
-    if (otpRecord.ownerVerified && otpRecord.renterVerified) {
-      // Update booking status
-      booking.deliveryStatus = "delivered";
-      booking.deliveryDate = new Date();
-      booking.status = "in_rental";
-      await booking.save();
-      
-      // Create notifications
-      await Promise.all([
-        // Notify owner
-        Notification.create({
-          userId: booking.ownerId,
-          userClerkId: booking.ownerClerkId,
-          type: "delivery_completed",
-          message: `Product has been successfully delivered to the renter`,
-          relatedId: booking._id,
-          relatedType: "booking"
-        }),
-        // Notify renter
-        Notification.create({
-          userId: booking.renterId,
-          userClerkId: booking.renterClerkId,
-          type: "delivery_completed",
-          message: `Product has been successfully delivered to you`,
-          relatedId: booking._id,
-          relatedType: "booking"
-        })
-      ]);
-      
-      return res.json({ 
-        success: true, 
-        message: "Delivery verified by both parties and completed",
-        booking
-      });
-    }
-    
-    res.json({ 
-      success: true, 
-      message: `OTP verified by ${userType}`,
-      ownerVerified: otpRecord.ownerVerified,
-      renterVerified: otpRecord.renterVerified
-    });
-  } catch (error) {
-    console.error('Error verifying delivery OTP:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to verify delivery OTP", 
-      error: error.message 
-    });
-  }
-};
-
-// Generate OTP for return verification
-export const generateReturnOTP = async (req, res) => {
-  try {
-    const { bookingId } = req.params;
-    const { userType } = req.body; // 'owner' or 'renter'
-    
-    const booking = await Booking.findById(bookingId)
-      .populate('productId', 'title')
-      .populate('renterId', 'email firstName lastName username')
-      .populate('ownerId', 'email firstName lastName username');
-    
-    if (!booking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-    
-    if (booking.status !== "in_rental") {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Booking must be in rental state for return verification" 
-      });
-    }
-    
-    // Generate OTP
-    const otp = generateOTP();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10); // OTP valid for 10 minutes
-    
-    // Check if an active OTP already exists
-    const existingOTP = await mongoose.model('OTP').findOne({
-      bookingId: booking._id,
-      type: "return",
-      expiresAt: { $gt: new Date() }
-    });
-    
-    if (existingOTP) {
-      // Update existing OTP
-      existingOTP.otp = otp;
-      existingOTP.expiresAt = expiresAt;
-      existingOTP.ownerVerified = false;
-      existingOTP.renterVerified = false;
-      await existingOTP.save();
-    } else {
-      // Create new OTP record
-      await mongoose.model('OTP').create({
-        bookingId: booking._id,
-        otp,
-        type: "return",
-        expiresAt
-      });
-    }
-    
-    // Determine recipient based on userType
-    const recipient = userType === 'owner' ? booking.ownerId : booking.renterId;
-    const recipientName = recipient.firstName || recipient.username;
-    
-    // Send OTP via email
-    await sendDeliveryReturnOTP(
-      recipient.email,
-      otp,
-      recipientName,
-      booking.productId.title,
-      false // isDelivery = false (return)
-    );
-    
-    res.json({ 
-      success: true, 
-      message: `Return verification OTP sent to ${userType}`,
-      expiresAt
-    });
-  } catch (error) {
-    console.error('Error generating return OTP:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to generate return OTP", 
-      error: error.message 
-    });
-  }
-};
-
-// Verify return OTP and complete booking
-export const verifyReturnOTP = async (req, res) => {
-  try {
-    const { bookingId } = req.params;
-    const { otp, userType, dropLocation } = req.body; // 'owner' or 'renter'
-    
-    const booking = await Booking.findById(bookingId);
-    if (!booking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-    
-    // Find active OTP for this booking
-    const otpRecord = await mongoose.model('OTP').findOne({
-      bookingId: booking._id,
-      type: "return",
-      otp,
-      expiresAt: { $gt: new Date() }
-    });
-    
-    if (!otpRecord) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid or expired OTP" 
-      });
-    }
-    
-    // Update verification status based on user type
-    if (userType === 'owner') {
-      otpRecord.ownerVerified = true;
-    } else if (userType === 'renter') {
-      otpRecord.renterVerified = true;
-    } else {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid user type" 
-      });
-    }
-    
-    await otpRecord.save();
-    
-    // Check if both owner and renter have verified
-    if (otpRecord.ownerVerified && otpRecord.renterVerified) {
-      // Complete the booking
-      booking.status = "completed";
-      booking.returnStatus = "completed";
-      booking.returnDate = new Date();
-      if (dropLocation) booking.dropLocation = dropLocation;
-      await booking.save();
-      
-      // Create notifications
-      await Promise.all([
-        // Notify owner
-        Notification.create({
-          userId: booking.ownerId,
-          userClerkId: booking.ownerClerkId,
-          type: "return_completed",
-          message: `Product has been successfully returned by the renter`,
-          relatedId: booking._id,
-          relatedType: "booking"
-        }),
-        // Notify renter
-        Notification.create({
-          userId: booking.renterId,
-          userClerkId: booking.renterClerkId,
-          type: "return_completed",
-          message: `You have successfully returned the product`,
-          relatedId: booking._id,
-          relatedType: "booking"
-        })
-      ]);
-      
-      return res.json({ 
-        success: true, 
-        message: "Return verified by both parties and booking completed",
-        booking
-      });
-    }
-    
-    res.json({ 
-      success: true, 
-      message: `OTP verified by ${userType}`,
-      ownerVerified: otpRecord.ownerVerified,
-      renterVerified: otpRecord.renterVerified
-    });
-  } catch (error) {
-    console.error('Error verifying return OTP:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to verify return OTP", 
-      error: error.message 
-    });
-  }
-};
-
-// Complete booking on return (legacy method, kept for backward compatibility)
+// Complete booking on return
 export const completeBooking = async (req, res) => {
   try {
     const { bookingId } = req.params;
@@ -1171,6 +892,196 @@ export const updateBookingPaymentStatus = async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: "Failed to update payment status", 
+      error: error.message 
+    });
+  }
+};
+
+// Generate delivery OTP
+export const generateDeliveryOTP = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.status !== "confirmed" && booking.status !== "paid") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Booking must be confirmed to generate delivery OTP" 
+      });
+    }
+
+    // Generate 6-digit OTP
+    const deliveryOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Set OTP expiry (15 minutes from now)
+    const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    
+    booking.deliveryOTP = deliveryOTP;
+    booking.deliveryOTPExpiry = otpExpiry;
+    await booking.save();
+
+    res.json({ 
+      success: true, 
+      message: "Delivery OTP generated successfully",
+      otp: deliveryOTP // In production, this should be sent via SMS/email
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to generate delivery OTP", 
+      error: error.message 
+    });
+  }
+};
+
+// Verify delivery OTP
+export const verifyDeliveryOTP = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { otp } = req.body;
+    
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (!booking.deliveryOTP || !booking.deliveryOTPExpiry) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "No delivery OTP found. Please generate OTP first" 
+      });
+    }
+
+    if (new Date() > booking.deliveryOTPExpiry) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Delivery OTP has expired" 
+      });
+    }
+
+    if (booking.deliveryOTP !== otp) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid delivery OTP" 
+      });
+    }
+
+    // Update booking status to delivered
+    booking.status = "in_rental";
+    booking.deliveryStatus = "completed";
+    booking.deliveryDate = new Date();
+    booking.deliveryOTP = null;
+    booking.deliveryOTPExpiry = null;
+    await booking.save();
+
+    res.json({ 
+      success: true, 
+      message: "Delivery verified successfully",
+      booking 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to verify delivery OTP", 
+      error: error.message 
+    });
+  }
+};
+
+// Generate return OTP
+export const generateReturnOTP = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.status !== "in_rental") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Booking must be in rental status to generate return OTP" 
+      });
+    }
+
+    // Generate 6-digit OTP
+    const returnOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Set OTP expiry (15 minutes from now)
+    const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    
+    booking.returnOTP = returnOTP;
+    booking.returnOTPExpiry = otpExpiry;
+    await booking.save();
+
+    res.json({ 
+      success: true, 
+      message: "Return OTP generated successfully",
+      otp: returnOTP // In production, this should be sent via SMS/email
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to generate return OTP", 
+      error: error.message 
+    });
+  }
+};
+
+// Verify return OTP
+export const verifyReturnOTP = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { otp } = req.body;
+    
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (!booking.returnOTP || !booking.returnOTPExpiry) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "No return OTP found. Please generate OTP first" 
+      });
+    }
+
+    if (new Date() > booking.returnOTPExpiry) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Return OTP has expired" 
+      });
+    }
+
+    if (booking.returnOTP !== otp) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid return OTP" 
+      });
+    }
+
+    // Update booking status to completed
+    booking.status = "completed";
+    booking.returnStatus = "completed";
+    booking.returnDate = new Date();
+    booking.returnOTP = null;
+    booking.returnOTPExpiry = null;
+    await booking.save();
+
+    res.json({ 
+      success: true, 
+      message: "Return verified successfully",
+      booking 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to verify return OTP", 
       error: error.message 
     });
   }

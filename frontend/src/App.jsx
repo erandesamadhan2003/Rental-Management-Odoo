@@ -34,6 +34,7 @@ import AdminProductManagement from './components/admin/AdminProductManagement'
 import Notifications from './components/Notifications'
 import PaymentPage from './components/PaymentPage'
 import PaymentSuccessPage from './components/PaymentSuccessPage'
+import AnimationDemo from './pages/AnimationDemo'
 
 // Import Redux hooks
 import { useAuth, useNotifications } from './hooks/useRedux'
@@ -254,6 +255,14 @@ const router = createBrowserRouter([
     element: (
       <SignedIn>
         <PaymentSuccessPage />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/animations-demo',
+    element: (
+      <SignedIn>
+        <AnimationDemo />
       </SignedIn>
     )
   },

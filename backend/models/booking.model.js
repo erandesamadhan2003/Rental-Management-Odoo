@@ -19,8 +19,13 @@ const bookingSchema = new mongoose.Schema(
       enum: ["requested", "accepted", "rejected", "pending_payment", "confirmed", "in_rental", "cancelled", "completed"], 
       default: "requested" 
     },
-    paymentStatus: { type: String, enum: ["unpaid", "paid", "refunded"], default: "unpaid" },
+    paymentStatus: { type: String, enum: ["unpaid", "pending", "paid", "refunded", "failed"], default: "unpaid" },
 
+    // Stripe payment fields
+    stripePaymentIntentId: { type: String },
+    stripeSessionId: { type: String },
+    stripeCustomerId: { type: String },
+    
     paymentId: { type: mongoose.Schema.Types.ObjectId, ref: "Payment" },
 
     pickupStatus: { type: String, enum: ["pending", "scheduled", "completed"], default: "pending" },
@@ -28,9 +33,13 @@ const bookingSchema = new mongoose.Schema(
 
     deliveryStatus: { type: String, enum: ["pending", "out_for_delivery", "delivered"], default: "pending" },
     deliveryDate: Date,
+    deliveryOTP: { type: String },
+    deliveryOTPExpiry: { type: Date },
 
     returnStatus: { type: String, enum: ["pending", "scheduled", "completed", "late"], default: "pending" },
     returnDate: Date,
+    returnOTP: { type: String },
+    returnOTPExpiry: { type: Date },
     lateFee: { type: Number, default: 0 },
 
     platformFee: { type: Number, default: 0 },

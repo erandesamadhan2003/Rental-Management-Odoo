@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { SignedIn, SignedOut } from '@clerk/clerk-react'
+import { SuccessHandshake } from './HandshakeAnimation'
 
 const Home = () => {
   const [currentSlide, setCurrentSlide] = useState(0)
@@ -30,7 +31,7 @@ const Home = () => {
       icon: '🏗️',
       count: '150+',
       image: '/api/placeholder/400/300',
-      color: 'from-orange-400 to-red-500'
+      color: 'from-emerald-400 to-emerald-600'
     },
     {
       id: 2,
@@ -39,16 +40,16 @@ const Home = () => {
       icon: '🔧',
       count: '200+',
       image: '/api/placeholder/400/300',
-      color: 'from-blue-400 to-indigo-500'
+      color: 'from-emerald-500 to-emerald-700'
     },
     {
       id: 3,
       name: 'Material Handling',
       description: 'Forklifts, Conveyors, Hoists',
-      icon: '�',
+      icon: '📦',
       count: '100+',
       image: '/api/placeholder/400/300',
-      color: 'from-emerald-400 to-teal-500'
+      color: 'from-gray-500 to-gray-700'
     },
     {
       id: 4,
@@ -57,7 +58,7 @@ const Home = () => {
       icon: '🦺',
       count: '50+',
       image: '/api/placeholder/400/300',
-      color: 'from-purple-400 to-pink-500'
+      color: 'from-gray-600 to-gray-800'
     }
   ]
 
@@ -227,7 +228,7 @@ const Home = () => {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center bg-gradient-to-br from-emerald-50 via-teal-50 to-green-50 overflow-hidden">
+      <section className="relative min-h-screen flex items-center bg-gradient-to-br from-emerald-50 via-white to-gray-50 overflow-hidden">
         {/* Animated Background with Parallax */}
         <div className="absolute inset-0">
           <div className="absolute top-0 left-0 w-full h-full">
@@ -236,15 +237,15 @@ const Home = () => {
               style={{ transform: `translateY(${scrollY * 0.1}px)` }}
             ></div>
             <div 
-              className="absolute top-20 left-20 w-80 h-80 bg-teal-200 rounded-full mix-blend-multiply filter blur-xl opacity-50 animate-blob animation-delay-2000 parallax"
+              className="absolute top-20 left-20 w-80 h-80 bg-emerald-100 rounded-full mix-blend-multiply filter blur-xl opacity-50 animate-blob animation-delay-2000 parallax"
               style={{ transform: `translateY(${scrollY * 0.15}px)` }}
             ></div>
             <div 
-              className="absolute bottom-20 left-1/3 w-72 h-72 bg-green-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-4000 parallax"
+              className="absolute bottom-20 left-1/3 w-72 h-72 bg-gray-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-4000 parallax"
               style={{ transform: `translateY(${scrollY * 0.05}px)` }}
             ></div>
             <div 
-              className="absolute bottom-10 right-1/4 w-64 h-64 bg-cyan-200 rounded-full mix-blend-multiply filter blur-xl opacity-35 animate-blob animation-delay-6000 parallax"
+              className="absolute bottom-10 right-1/4 w-64 h-64 bg-gray-100 rounded-full mix-blend-multiply filter blur-xl opacity-35 animate-blob animation-delay-6000 parallax"
               style={{ transform: `translateY(${scrollY * 0.2}px)` }}
             ></div>
           </div>
@@ -257,7 +258,7 @@ const Home = () => {
                
                 <h1 className="text-6xl md:text-7xl font-bold text-gray-900 leading-tight stagger-item">
                   Bringing Creative
-                  <span className="block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent animate-gradient-x">
+                  <span className="block bg-gradient-to-r from-emerald-600 to-emerald-800 bg-clip-text text-transparent animate-gradient-x">
                     Equipment Rentals
                   </span>
                   <span className="block text-5xl md:text-6xl text-gray-700">into life</span>
@@ -277,7 +278,7 @@ const Home = () => {
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
                   >
-                    <span>Watch Video</span>
+                    <span>Start Here</span>
                     <svg className="w-5 h-5 ml-2 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z"/>
                     </svg>
@@ -328,58 +329,21 @@ const Home = () => {
                   className="absolute inset-0 bg-white rounded-3xl shadow-2xl transform rotate-3 transition-all duration-500 hover:rotate-6"
                   style={{ transform: `rotate(3deg) translateY(${scrollY * 0.02}px)` }}
                 ></div>
-                <div 
-                  className="relative bg-white rounded-3xl shadow-xl p-8 transform -rotate-2 hover:rotate-0 transition-all duration-500 hover-lift magnetic-btn cursor-pointer"
-                  style={{ transform: `rotate(-2deg) translateY(${scrollY * 0.05}px)` }}
-                  onMouseEnter={handleMouseEnter}
-                  onMouseLeave={handleMouseLeave}
-                >
-                  <div className="text-center space-y-6">
-                    {/* Equipment Display */}
-                    <div className="relative">
-                      <div className="w-72 h-48 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-2xl flex items-center justify-center hover-lift transition-all duration-300">
-                        <div className="text-6xl animate-float">🏗️</div>
-                      </div>
-                      <div className="absolute -top-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center animate-pulse-soft">
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
+                <div className="relative bg-gradient-to-br from-white via-emerald-50 to-gray-50  shadow-2xl transform -rotate-2 hover:rotate-0 transition-all duration-700 hover:scale-105 group border-4 border-emerald-200" style={{ padding: '3cm' }}>
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/20 to-gray-400/20 animate-pulse"></div>
+                  <div className="relative text-center">
+                    <div className="absolute -inset-4 bg-gradient-to-r from-emerald-600 to-gray-600  blur-xl opacity-30 group-hover:opacity-50 transition-opacity duration-500"></div>
+                    <div className="relative transform group-hover:scale-110 transition-transform duration-500">
+                      <SuccessHandshake width={250} height={250} showText={false} />
                     </div>
-                    
-                    <div className="space-y-3">
-                      <h3 className="text-2xl font-bold text-gray-900 transition-colors duration-300 hover:text-emerald-600">CAT Excavator 320</h3>
-                      <p className="text-gray-600 transition-colors duration-300">Professional grade excavator for heavy construction work</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-2xl font-bold text-emerald-600 animate-gradient-x">₹1,200</span>
-                        <span className="text-gray-500">/day</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex space-x-2">
-                      <div className="w-16 h-16 bg-emerald-100 rounded-xl flex items-center justify-center">
-                        <span className="text-2xl">🚛</span>
-                      </div>
-                      <div className="w-16 h-16 bg-teal-100 rounded-xl flex items-center justify-center">
-                        <span className="text-2xl">�</span>
-                      </div>
-                      <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center">
-                        <span className="text-2xl">⚡</span>
-                      </div>
+                    <div className="mt-4 opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-4 group-hover:translate-y-0">
+                      <p className="text-emerald-600 font-bold text-lg">Ready to Deal!</p>
                     </div>
                   </div>
                 </div>
               </div>
               
-              {/* Floating Elements */}
-              <div className="absolute top-10 left-10 w-20 h-20 bg-white rounded-2xl shadow-lg flex items-center justify-center transform -rotate-12 hover:rotate-0 transition-transform duration-300">
-                <span className="text-2xl">�</span>
-              </div>
-              <div className="absolute bottom-10 right-10 w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center text-white transform rotate-12 hover:rotate-0 transition-transform duration-300">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
+             
             </div>
           </div>
         </div>
@@ -459,7 +423,7 @@ const Home = () => {
      
 
       {/* How It Works Section */}
-      <section className="py-24 bg-gradient-to-br from-emerald-50 to-teal-50">
+      <section className="py-24 bg-gradient-to-br from-emerald-50 to-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <div className="inline-flex items-center px-4 py-2 bg-emerald-100 rounded-full text-emerald-700 text-sm font-medium mb-6">
@@ -482,12 +446,12 @@ const Home = () => {
               >
                 {/* Connection Line */}
                 {index < processSteps.length - 1 && (
-                  <div className="hidden lg:block absolute top-16 left-full w-full h-0.5 bg-gradient-to-r from-emerald-200 to-teal-200 transform translate-x-4"></div>
+                  <div className="hidden lg:block absolute top-16 left-full w-full h-0.5 bg-gradient-to-r from-emerald-200 to-gray-200 transform translate-x-4"></div>
                 )}
                 
                 <div className="relative">
                   <div className="w-32 h-32 mx-auto bg-white rounded-full shadow-lg flex items-center justify-center mb-6 group-hover:shadow-xl transition-all duration-300 hover-lift">
-                    <div className="w-20 h-20 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center text-white text-3xl group-hover:scale-110 transition-transform">
+                    <div className="w-20 h-20 bg-gradient-to-br from-emerald-400 to-gray-500 rounded-full flex items-center justify-center text-white text-3xl group-hover:scale-110 transition-transform">
                       {step.icon}
                     </div>
                   </div>
@@ -546,7 +510,7 @@ const Home = () => {
             </div>
             <h2 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
               Premium Equipment
-              <span className="block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+              <span className="block bg-gradient-to-r from-emerald-600 to-gray-800 bg-clip-text text-transparent">
                 Rental Experience
               </span>
             </h2>
@@ -561,9 +525,9 @@ const Home = () => {
             <div className="group relative bg-white rounded-3xl p-8 shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 hover-lift cursor-pointer"
                  onMouseEnter={handleMouseEnter}
                  onMouseLeave={handleMouseLeave}>
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-gray-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative">
-                <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <span className="text-2xl">🚀</span>
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-emerald-600 transition-colors">Quick Booking</h3>
@@ -580,12 +544,12 @@ const Home = () => {
             <div className="group relative bg-white rounded-3xl p-8 shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 hover-lift cursor-pointer"
                  onMouseEnter={handleMouseEnter}
                  onMouseLeave={handleMouseLeave}>
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-white rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <div className="w-16 h-16 bg-gradient-to-br from-gray-400 to-gray-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <span className="text-2xl">📱</span>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">Real-time Tracking</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-gray-700 transition-colors">Real-time Tracking</h3>
                 <p className="text-gray-600 leading-relaxed mb-4">Track your equipment status and location in real-time with our advanced GPS monitoring system.</p>
                 <ul className="text-sm text-gray-500 space-y-1">
                   <li>• Live GPS tracking</li>
@@ -599,12 +563,12 @@ const Home = () => {
             <div className="group relative bg-white rounded-3xl p-8 shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 hover-lift cursor-pointer"
                  onMouseEnter={handleMouseEnter}
                  onMouseLeave={handleMouseLeave}>
-              <div className="absolute inset-0 bg-gradient-to-br from-green-50 to-emerald-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-white rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative">
-                <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <span className="text-2xl">🛡️</span>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-green-600 transition-colors">Insured Equipment</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-emerald-600 transition-colors">Insured Equipment</h3>
                 <p className="text-gray-600 leading-relaxed mb-4">All equipment comes with comprehensive insurance coverage for your peace of mind.</p>
                 <ul className="text-sm text-gray-500 space-y-1">
                   <li>• Full damage coverage</li>
@@ -618,12 +582,12 @@ const Home = () => {
             <div className="group relative bg-white rounded-3xl p-8 shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 hover-lift cursor-pointer"
                  onMouseEnter={handleMouseEnter}
                  onMouseLeave={handleMouseLeave}>
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-red-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-emerald-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative">
-                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <div className="w-16 h-16 bg-gradient-to-br from-gray-500 to-gray-700 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <span className="text-2xl">⚡</span>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-orange-600 transition-colors">Fast Delivery</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-gray-700 transition-colors">Fast Delivery</h3>
                 <p className="text-gray-600 leading-relaxed mb-4">Same-day delivery available for urgent requirements across 50+ cities.</p>
                 <ul className="text-sm text-gray-500 space-y-1">
                   <li>• Same-day delivery</li>
@@ -637,12 +601,12 @@ const Home = () => {
             <div className="group relative bg-white rounded-3xl p-8 shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 hover-lift cursor-pointer"
                  onMouseEnter={handleMouseEnter}
                  onMouseLeave={handleMouseLeave}>
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-white to-gray-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative">
-                <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <div className="w-16 h-16 bg-gradient-to-br from-gray-600 to-gray-800 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <span className="text-2xl">👨‍🔧</span>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-purple-600 transition-colors">Expert Support</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-gray-800 transition-colors">Expert Support</h3>
                 <p className="text-gray-600 leading-relaxed mb-4">Get professional guidance from our experienced team of equipment specialists.</p>
                 <ul className="text-sm text-gray-500 space-y-1">
                   <li>• Equipment training</li>
@@ -656,12 +620,12 @@ const Home = () => {
             <div className="group relative bg-white rounded-3xl p-8 shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 hover-lift cursor-pointer"
                  onMouseEnter={handleMouseEnter}
                  onMouseLeave={handleMouseLeave}>
-              <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-gray-50 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative">
-                <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <div className="w-16 h-16 bg-gradient-to-br from-emerald-600 to-emerald-800 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <span className="text-2xl">💰</span>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-cyan-600 transition-colors">Flexible Pricing</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-emerald-700 transition-colors">Flexible Pricing</h3>
                 <p className="text-gray-600 leading-relaxed mb-4">Transparent pricing with flexible rental periods to suit your project timeline and budget.</p>
                 <ul className="text-sm text-gray-500 space-y-1">
                   <li>• Hourly to monthly rates</li>
@@ -673,7 +637,7 @@ const Home = () => {
           </div>
 
           {/* Stats Section */}
-          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-3xl p-12 text-white">
+          <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-3xl p-12 text-white">
             <div className="text-center mb-12">
               <h3 className="text-3xl md:text-4xl font-bold mb-4">Trusted by Industry Leaders</h3>
               <p className="text-xl text-emerald-100">Join thousands of satisfied customers across the country</p>
@@ -708,7 +672,7 @@ const Home = () => {
             </div>
             <h2 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
               Success Stories
-              <span className="block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+              <span className="block bg-gradient-to-r from-emerald-600 to-gray-800 bg-clip-text text-transparent">
                 From Our Customers
               </span>
             </h2>
@@ -720,7 +684,7 @@ const Home = () => {
           <div className="relative max-w-5xl mx-auto">
             <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-12 md:p-16">
               <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-8">
+                <div className="w-20 h-20 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-8">
                   {testimonials[currentSlide].avatar}
                 </div>
                 <p className="text-2xl md:text-3xl text-gray-800 leading-relaxed mb-10 italic font-light">
@@ -752,18 +716,18 @@ const Home = () => {
             
             {/* Decorative elements */}
             <div className="absolute -top-6 -left-6 w-12 h-12 bg-emerald-200 rounded-full opacity-60"></div>
-            <div className="absolute -bottom-6 -right-6 w-16 h-16 bg-teal-200 rounded-full opacity-40"></div>
+            <div className="absolute -bottom-6 -right-6 w-16 h-16 bg-gray-200 rounded-full opacity-40"></div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 bg-gradient-to-br from-emerald-500 to-teal-600 relative overflow-hidden">
+      <section className="py-24 bg-gradient-to-br from-emerald-500 to-emerald-700 relative overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute top-0 left-0 w-full h-full">
             <div className="absolute top-10 right-10 w-80 h-80 bg-white rounded-full mix-blend-overlay filter blur-xl opacity-10 animate-blob"></div>
             <div className="absolute bottom-10 left-10 w-96 h-96 bg-emerald-200 rounded-full mix-blend-overlay filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-teal-200 rounded-full mix-blend-overlay filter blur-xl opacity-15 animate-blob animation-delay-4000"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gray-200 rounded-full mix-blend-overlay filter blur-xl opacity-15 animate-blob animation-delay-4000"></div>
           </div>
         </div>
         
@@ -817,7 +781,7 @@ const Home = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             <div className="col-span-1 md:col-span-2">
               <div className="flex items-center space-x-3 mb-6">
-                <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center">
+                <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl flex items-center justify-center">
                   <span className="text-white font-bold text-xl">R</span>
                 </div>
                 <span className="text-3xl font-bold">Reservelt</span>
