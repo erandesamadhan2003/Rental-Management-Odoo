@@ -279,3 +279,167 @@ export const handleClerkWebhook = async (req, res) => {
     return handleError(res, error, 'Webhook processing failed')
   }
 }
+
+// Check if user has admin role
+export const checkAdminRole = async (req, res) => {
+  try {
+    const { clerkId } = req.user // Assuming clerkId is available from auth middleware
+
+    const user = await User.findOne({ clerkId })
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+        isAdmin: false
+      })
+    }
+
+    return res.status(200).json({
+      success: true,
+      isAdmin: user.role === 'admin',
+      role: user.role
+    })
+  } catch (error) {
+    return handleError(res, error, 'Failed to check admin role')
+  }
+}
+
+// Check if email belongs to admin and send OTP
+export const initiateAdminLogin = async (req, res) => {
+  try {
+    const { email } = req.body
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      })
+    }
+
+    // Check if user exists and is admin
+    const user = await User.findOne({ email })
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      })
+    }
+
+    if (user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin privileges required.'
+      })
+    }
+
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+
+    // Save OTP to database (you'll need to create an OTP model)
+    // For now, we'll store it in the user document temporarily
+    user.adminOtp = otp
+    user.adminOtpExpiry = otpExpiry
+    await user.save()
+
+    // Send OTP email (implement your email service)
+    try {
+      // Import your email service
+      const emailService = await import('../services/email.service.js')
+      await emailService.sendAdminOTP(email, otp, user.firstName || 'Admin')
+    } catch (emailError) {
+      console.error('Failed to send OTP email:', emailError)
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP email'
+      })
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent to your email address',
+      email: email
+    })
+  } catch (error) {
+    return handleError(res, error, 'Failed to initiate admin login')
+  }
+}
+
+// Verify OTP and complete admin login
+export const verifyAdminOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and OTP are required'
+      })
+    }
+
+    // Find user and verify OTP
+    const user = await User.findOne({ email })
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      })
+    }
+
+    if (user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      })
+    }
+
+    if (!user.adminOtp || !user.adminOtpExpiry) {
+      return res.status(400).json({
+        success: false,
+        message: 'No OTP found. Please request a new one.'
+      })
+    }
+
+    if (user.adminOtpExpiry < new Date()) {
+      // Clear expired OTP
+      user.adminOtp = undefined
+      user.adminOtpExpiry = undefined
+      await user.save()
+
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Please request a new one.'
+      })
+    }
+
+    if (user.adminOtp !== otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP'
+      })
+    }
+
+    // OTP verified successfully - clear it
+    user.adminOtp = undefined
+    user.adminOtpExpiry = undefined
+    await user.save()
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      user: {
+        id: user._id,
+        clerkId: user.clerkId,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role
+      }
+    })
+  } catch (error) {
+    return handleError(res, error, 'Failed to verify admin OTP')
+  }
+}

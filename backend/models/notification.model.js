@@ -7,7 +7,19 @@ const notificationSchema = new mongoose.Schema(
     type: { 
       type: String, 
       required: true,
-      enum: ["reminder", "payment", "system", "promotion", "rental_request", "payment_confirmation", "pickup_scheduled", "drop_scheduled"]
+      enum: [
+        "reminder", 
+        "payment", 
+        "system", 
+        "promotion", 
+        "rental_request", 
+        "rental_accepted", 
+        "rental_rejected", 
+        "payment_confirmation", 
+        "pickup_scheduled", 
+        "drop_scheduled",
+        "due_payment"
+      ]
     },
     message: { type: String, required: true },
     isRead: { type: Boolean, default: false },

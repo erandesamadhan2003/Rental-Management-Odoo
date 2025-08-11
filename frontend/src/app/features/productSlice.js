@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 
 // API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
 
 // Helper function for API calls
 const makeApiCall = async (url, options = {}) => {
@@ -33,6 +33,34 @@ export const getProducts = createAsyncThunk(
     try {
       const queryString = new URLSearchParams(params).toString()
       const url = queryString ? `/products?${queryString}` : '/products'
+      const data = await makeApiCall(url)
+      return data.products || data
+    } catch (error) {
+      return rejectWithValue(error.message)
+    }
+  }
+)
+
+export const getMyProducts = createAsyncThunk(
+  'products/getMyProducts',
+  async ({ clerkId, ...params }, { rejectWithValue }) => {
+    try {
+      const queryString = new URLSearchParams(params).toString()
+      const url = queryString ? `/products/my/${clerkId}?${queryString}` : `/products/my/${clerkId}`
+      const data = await makeApiCall(url)
+      return data.products || data
+    } catch (error) {
+      return rejectWithValue(error.message)
+    }
+  }
+)
+
+export const getBrowseProducts = createAsyncThunk(
+  'products/getBrowseProducts', 
+  async ({ clerkId, ...params }, { rejectWithValue }) => {
+    try {
+      const queryString = new URLSearchParams(params).toString()
+      const url = queryString ? `/products/browse/${clerkId}?${queryString}` : `/products/browse/${clerkId}`
       const data = await makeApiCall(url)
       return data.products || data
     } catch (error) {
@@ -100,9 +128,15 @@ export const deleteProduct = createAsyncThunk(
 // Initial state
 const initialState = {
   products: [],
+  myProducts: [],
+  browseProducts: [],
   selectedProduct: null,
   isLoading: false,
+  myProductsLoading: false,
+  browseProductsLoading: false,
   error: null,
+  myProductsError: null,
+  browseProductsError: null,
   totalProducts: 0,
   currentPage: 1,
   totalPages: 1,
@@ -157,6 +191,36 @@ const productSlice = createSlice({
         state.error = action.payload
       })
 
+      // Get My Products
+      .addCase(getMyProducts.pending, (state) => {
+        state.myProductsLoading = true
+        state.myProductsError = null
+      })
+      .addCase(getMyProducts.fulfilled, (state, action) => {
+        state.myProductsLoading = false
+        state.myProducts = action.payload
+        state.myProductsError = null
+      })
+      .addCase(getMyProducts.rejected, (state, action) => {
+        state.myProductsLoading = false
+        state.myProductsError = action.payload
+      })
+
+      // Get Browse Products
+      .addCase(getBrowseProducts.pending, (state) => {
+        state.browseProductsLoading = true
+        state.browseProductsError = null
+      })
+      .addCase(getBrowseProducts.fulfilled, (state, action) => {
+        state.browseProductsLoading = false
+        state.browseProducts = action.payload
+        state.browseProductsError = null
+      })
+      .addCase(getBrowseProducts.rejected, (state, action) => {
+        state.browseProductsLoading = false
+        state.browseProductsError = action.payload
+      })
+
       // Get Product by ID
       .addCase(getProductById.pending, (state) => {
         state.isLoading = true
@@ -180,6 +244,7 @@ const productSlice = createSlice({
       .addCase(createProduct.fulfilled, (state, action) => {
         state.isLoading = false
         state.products.push(action.payload)
+        state.myProducts.push(action.payload)
         state.error = null
       })
       .addCase(createProduct.rejected, (state, action) => {
@@ -198,6 +263,10 @@ const productSlice = createSlice({
         if (index !== -1) {
           state.products[index] = action.payload
         }
+        const myIndex = state.myProducts.findIndex(p => p._id === action.payload._id)
+        if (myIndex !== -1) {
+          state.myProducts[myIndex] = action.payload
+        }
         if (state.selectedProduct && state.selectedProduct._id === action.payload._id) {
           state.selectedProduct = action.payload
         }
@@ -215,8 +284,9 @@ const productSlice = createSlice({
       })
       .addCase(deleteProduct.fulfilled, (state, action) => {
         state.isLoading = false
-        state.products = state.products.filter(p => p._id !== action.payload)
-        if (state.selectedProduct && state.selectedProduct._id === action.payload) {
+        state.products = state.products.filter(p => p._id !== action.payload && p.id !== action.payload)
+        state.myProducts = state.myProducts.filter(p => p._id !== action.payload && p.id !== action.payload)
+        if (state.selectedProduct && (state.selectedProduct._id === action.payload || state.selectedProduct.id === action.payload)) {
           state.selectedProduct = null
         }
         state.error = null
@@ -228,7 +298,7 @@ const productSlice = createSlice({
   },
 })
 
-// Export actions
+// Export actions and async thunks
 export const { 
   clearError, 
   clearSelectedProduct, 
@@ -237,11 +307,21 @@ export const {
   setCurrentPage 
 } = productSlice.actions
 
+// Note: getProducts, getMyProducts, getBrowseProducts, getProductById, 
+// createProduct, updateProduct, deleteProduct are already exported above 
+// when defined with createAsyncThunk
+
 // Export selectors
 export const selectProducts = (state) => state.products.products
+export const selectMyProducts = (state) => state.products.myProducts
+export const selectBrowseProducts = (state) => state.products.browseProducts
 export const selectSelectedProduct = (state) => state.products.selectedProduct
 export const selectProductsLoading = (state) => state.products.isLoading
+export const selectMyProductsLoading = (state) => state.products.myProductsLoading
+export const selectBrowseProductsLoading = (state) => state.products.browseProductsLoading
 export const selectProductsError = (state) => state.products.error
+export const selectMyProductsError = (state) => state.products.myProductsError
+export const selectBrowseProductsError = (state) => state.products.browseProductsError
 export const selectProductFilters = (state) => state.products.filters
 export const selectCurrentPage = (state) => state.products.currentPage
 export const selectTotalPages = (state) => state.products.totalPages

@@ -277,7 +277,7 @@ const Home = () => {
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
                   >
-                    <span>Start Here</span>
+                    <span>Watch Video</span>
                     <svg className="w-5 h-5 ml-2 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z"/>
                     </svg>
