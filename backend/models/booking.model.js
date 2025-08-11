@@ -40,7 +40,12 @@ const bookingSchema = new mongoose.Schema(
     payoutDate: Date,
 
     cancelReason: { type: String },
-    notes: { type: String }
+    notes: { type: String },
+
+    // Email reminder flags
+    reminderSent: { type: Boolean, default: false }, // 6 hours before endDate
+    deadlineSent: { type: Boolean, default: false }, // at endDate
+    warningSent: { type: Boolean, default: false }   // 30 minutes after endDate
   },
   { timestamps: true }
 );

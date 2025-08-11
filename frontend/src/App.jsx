@@ -25,6 +25,9 @@ import ProductDetails from './components/ProductDetails'
 import QuoteOrder from './components/QuoteOrder'
 import DeliveryManagement from './components/DeliveryManagement'
 import CustomerPortal from './components/CustomerPortal'
+import AdminDashboard from './components/admin/AdminDashboard'
+import AdminUserManagement from './components/admin/AdminUserManagement'
+import AdminProductManagement from './components/admin/AdminProductManagement'
 
 
 // Environment Key
@@ -220,6 +223,30 @@ const router = createBrowserRouter([
     element: (
       <SignedIn>
         <Settings />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/admin',
+    element: (
+      <SignedIn>
+        <AdminDashboard />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/admin/users',
+    element: (
+      <SignedIn>
+        <AdminUserManagement />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/admin/products',
+    element: (
+      <SignedIn>
+        <AdminProductManagement />
       </SignedIn>
     )
   },

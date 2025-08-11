@@ -16,6 +16,10 @@ import reviewRoutes from './routes/review.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import pricelistRoutes from './routes/pricelist.routes.js';
 import invoiceRoutes from './routes/invoice.routes.js';
+import reminderRoutes from './routes/reminder.routes.js';
+
+// Import cron job service
+import rentalReminderCron from './services/rentalReminder.cron.js';
 
 // Load environment variables
 dotenv.config();
@@ -58,6 +62,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/pricelists', pricelistRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/reminders', reminderRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -89,9 +94,14 @@ app.use((error, req, res, next) => {
 // Start server
 const startServer = async () => {
   await connectDB();
+  
+  // Initialize cron job for rental reminders
+  console.log('🔄 Initializing rental reminder cron job...');
+  
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
+    console.log('📧 Rental reminder emails will be sent automatically');
   });
 };
 
