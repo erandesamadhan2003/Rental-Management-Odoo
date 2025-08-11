@@ -7,6 +7,11 @@ import Home from './components/Home'
 import SignInPage from './components/auth/SignInPage'
 import SignUpPage from './components/auth/SignUpPage'
 import Dashboard from './components/Dashboard'
+import Products from './components/Products'
+import Orders from './components/Orders'
+import Customers from './components/Customers'
+import Reports from './components/Reports'
+import Settings from './components/Settings'
 import ClerkUserSync from './components/ClerkUserSync'
 
 // Import your publishable key
@@ -21,7 +26,7 @@ function App() {
     <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
       <ClerkUserSync />
       <Router>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gradient-to-br from-sage-50 to-sage-100">
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Home />} />
@@ -34,6 +39,51 @@ function App() {
               element={
                 <SignedIn>
                   <Dashboard />
+                </SignedIn>
+              }
+            />
+            
+            <Route
+              path="/products"
+              element={
+                <SignedIn>
+                  <Products />
+                </SignedIn>
+              }
+            />
+
+            <Route
+              path="/orders"
+              element={
+                <SignedIn>
+                  <Orders />
+                </SignedIn>
+              }
+            />
+
+            <Route
+              path="/customers"
+              element={
+                <SignedIn>
+                  <Customers />
+                </SignedIn>
+              }
+            />
+
+            <Route
+              path="/reports"
+              element={
+                <SignedIn>
+                  <Reports />
+                </SignedIn>
+              }
+            />
+
+            <Route
+              path="/settings"
+              element={
+                <SignedIn>
+                  <Settings />
                 </SignedIn>
               }
             />
