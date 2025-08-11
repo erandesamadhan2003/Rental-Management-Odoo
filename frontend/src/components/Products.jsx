@@ -1,83 +1,66 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useUser } from '@clerk/clerk-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import Navbar from './Navbar'
+import { getAllProducts } from '../lib/actions/product.actions'
+import RentalForm from './RentalForm'
+import ProductForm from './ProductForm'
 
 const Products = () => {
   const { user } = useUser()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedProducts, setSelectedProducts] = useState([])
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [showRentalForm, setShowRentalForm] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [showProductForm, setShowProductForm] = useState(false)
 
-  // Sample product data
-  const products = [
-    {
-      id: 1,
-      name: 'Excavator CAT 320',
-      category: 'Heavy Machinery',
-      price: 1200,
-      stock: 5,
-      status: 'Available',
-      image: '/api/placeholder/150/100',
-      description: 'Heavy duty excavator for construction work'
-    },
-    {
-      id: 2,
-      name: 'Forklift Toyota 8FBE',
-      category: 'Material Handling',
-      price: 450,
-      stock: 8,
-      status: 'Available',
-      image: '/api/placeholder/150/100',
-      description: 'Electric forklift with 3-ton capacity'
-    },
-    {
-      id: 3,
-      name: 'Crane Liebherr LTM',
-      category: 'Heavy Machinery',
-      price: 2500,
-      stock: 2,
-      status: 'Rented',
-      image: '/api/placeholder/150/100',
-      description: 'Mobile crane for heavy lifting operations'
-    },
-    {
-      id: 4,
-      name: 'Generator Caterpillar',
-      category: 'Power Equipment',
-      price: 350,
-      stock: 12,
-      status: 'Available',
-      image: '/api/placeholder/150/100',
-      description: 'Diesel generator 500KVA capacity'
-    },
-    {
-      id: 5,
-      name: 'Bulldozer Komatsu D65',
-      category: 'Heavy Machinery',
-      price: 1800,
-      stock: 3,
-      status: 'Maintenance',
-      image: '/api/placeholder/150/100',
-      description: 'Track-type bulldozer for earthmoving'
-    },
-    {
-      id: 6,
-      name: 'Scaffold Tower',
-      category: 'Safety Equipment',
-      price: 150,
-      stock: 20,
-      status: 'Available',
-      image: '/api/placeholder/150/100',
-      description: 'Aluminum scaffold tower system'
+  const loadProducts = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const data = await getAllProducts()
+      setProducts(data || [])
+    } catch (e) {
+      setError('Failed to load products')
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
 
-  const categories = ['All', 'Heavy Machinery', 'Material Handling', 'Power Equipment', 'Safety Equipment']
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      await loadProducts()
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  // Open form if ?new=1 in URL
+  useEffect(() => {
+    const shouldOpen = searchParams.get('new') === '1'
+    if (shouldOpen) {
+      setShowProductForm(true)
+    }
+  }, [searchParams])
+
+  const categories = useMemo(() => {
+    const set = new Set(products.map(p => p.category).filter(Boolean))
+    return ['All', ...Array.from(set)]
+  }, [products])
 
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.category.toLowerCase().includes(searchTerm.toLowerCase())
+    const title = (product.title || '').toLowerCase()
+    const category = (product.category || '').toLowerCase()
+    const brand = (product.brand || '').toLowerCase()
+    const matchesSearch = title.includes(searchTerm.toLowerCase()) || 
+                         category.includes(searchTerm.toLowerCase()) ||
+                         brand.includes(searchTerm.toLowerCase())
     const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory
     return matchesSearch && matchesCategory
   })
@@ -90,14 +73,19 @@ const Products = () => {
     )
   }
 
+  const handleRentNow = (product) => {
+    setSelectedProduct(product)
+    setShowRentalForm(true)
+  }
+
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Available':
+      case 'approved':
         return 'bg-green-100 text-green-800'
-      case 'Rented':
-        return 'bg-purple-100 text-purple-800'
-      case 'Maintenance':
+      case 'pending':
         return 'bg-yellow-100 text-yellow-800'
+      case 'rejected':
+        return 'bg-red-100 text-red-800'
       default:
         return 'bg-gray-100 text-gray-800'
     }
@@ -114,7 +102,7 @@ const Products = () => {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-midnight-800 mb-2">Equipment Inventory</h1>
-              <p className="text-navy-600">Manage your rental equipment catalog and availability</p>
+              <p className="text-navy-600">Browse and rent equipment from our community</p>
             </div>
             <div className="text-right">
               <div className="text-sm text-navy-600">Total Equipment</div>
@@ -149,30 +137,12 @@ const Products = () => {
               <div className="mb-6">
                 <label className="block text-sm font-medium text-navy-700 mb-2">Status</label>
                 <div className="space-y-2">
-                  {['All', 'Available', 'Rented', 'Maintenance'].map(status => (
+                  {['All', 'approved', 'pending', 'rejected'].map(status => (
                     <label key={status} className="flex items-center">
                       <input type="checkbox" className="rounded border-purple-300 text-purple-600 focus:ring-purple-500" />
-                      <span className="ml-2 text-sm text-navy-600">{status}</span>
+                      <span className="ml-2 text-sm text-navy-600 capitalize">{status}</span>
                     </label>
                   ))}
-                </div>
-              </div>
-
-              {/* Price Range */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-navy-700 mb-2">Price Range (per day)</label>
-                <div className="flex items-center space-x-2">
-                  <input 
-                    type="number" 
-                    placeholder="Min" 
-                    className="w-full px-3 py-2 border border-purple-300 rounded-md text-sm"
-                  />
-                  <span className="text-navy-500">-</span>
-                  <input 
-                    type="number" 
-                    placeholder="Max" 
-                    className="w-full px-3 py-2 border border-purple-300 rounded-md text-sm"
-                  />
                 </div>
               </div>
 
@@ -183,19 +153,13 @@ const Products = () => {
                   <div className="flex justify-between">
                     <span className="text-sm text-navy-600">Available</span>
                     <span className="text-sm font-medium text-green-600">
-                      {products.filter(p => p.status === 'Available').length}
+                      {products.filter(p => p.status === 'approved').length}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-navy-600">Rented</span>
-                    <span className="text-sm font-medium text-purple-600">
-                      {products.filter(p => p.status === 'Rented').length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-navy-600">Maintenance</span>
+                    <span className="text-sm text-navy-600">Pending</span>
                     <span className="text-sm font-medium text-yellow-600">
-                      {products.filter(p => p.status === 'Maintenance').length}
+                      {products.filter(p => p.status === 'pending').length}
                     </span>
                   </div>
                 </div>
@@ -244,7 +208,10 @@ const Products = () => {
 
                 {/* Action Buttons */}
                 <div className="flex flex-wrap gap-2 mt-4">
-                  <button className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors flex items-center gap-2">
+                  <button 
+                    className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors flex items-center gap-2"
+                    onClick={() => setShowProductForm(true)}
+                  >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
@@ -275,15 +242,17 @@ const Products = () => {
 
             {/* Products Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
-              {filteredProducts.map((product) => (
+              {loading && <div className="col-span-full text-center text-navy-600">Loading...</div>}
+              {error && <div className="col-span-full text-center text-red-600">{error}</div>}
+              {!loading && !error && filteredProducts.map((product) => (
                 <div
-                  key={product.id}
+                  key={product._id}
                   className={`bg-white/80 backdrop-blur-sm rounded-lg shadow-md border transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer ${
-                    selectedProducts.includes(product.id)
+                    selectedProducts.includes(product._id)
                       ? 'border-purple-500 ring-2 ring-purple-200'
                       : 'border-purple-200'
                   }`}
-                  onClick={() => handleProductSelect(product.id)}
+                  onClick={() => handleProductSelect(product._id)}
                 >
                   {/* Product Image */}
                   <div className="relative">
@@ -299,11 +268,11 @@ const Products = () => {
                     {/* Checkbox */}
                     <div className="absolute top-3 left-3">
                       <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                        selectedProducts.includes(product.id)
+                        selectedProducts.includes(product._id)
                           ? 'bg-purple-500 border-purple-500'
                           : 'bg-white border-purple-300'
                       }`}>
-                        {selectedProducts.includes(product.id) && (
+                        {selectedProducts.includes(product._id) && (
                           <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
@@ -321,24 +290,39 @@ const Products = () => {
 
                   {/* Product Info */}
                   <div className="p-4">
-                    <h3 className="text-lg font-semibold text-midnight-800 mb-1">{product.name}</h3>
-                    <p className="text-sm text-navy-600 mb-2">{product.category}</p>
+                    <h3 className="text-lg font-semibold text-midnight-800 mb-1">{product.title}</h3>
+                    <p className="text-sm text-navy-600 mb-2">{product.category} • {product.brand}</p>
                     <p className="text-xs text-navy-500 mb-3 line-clamp-2">{product.description}</p>
+                    
+                    {/* Tags */}
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {product.tags?.map((tag, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                     
                     <div className="flex justify-between items-center mb-4">
                       <div>
                         <span className="text-sm text-navy-600">Daily Rate</span>
-                        <p className="text-xl font-bold text-midnight-800">${product.price}</p>
+                        <p className="text-xl font-bold text-midnight-800">₹{product.pricePerDay || product.pricePerHour || '-'}</p>
                       </div>
                       <div className="text-right">
-                        <span className="text-sm text-navy-600">In Stock</span>
-                        <p className="text-xl font-bold text-midnight-800">{product.stock}</p>
+                        <span className="text-sm text-navy-600">Owner</span>
+                        <p className="text-sm font-medium text-midnight-800">{product.ownerId?.firstName || product.ownerId?.username || 'Unknown'}</p>
                       </div>
                     </div>
 
                     {/* Action Buttons */}
                     <div className="flex space-x-2">
-                      <button className="flex-1 px-3 py-2 bg-purple-500 text-white text-sm rounded-md hover:bg-purple-600 transition-colors">
+                      <button 
+                        className="flex-1 px-3 py-2 bg-purple-500 text-white text-sm rounded-md hover:bg-purple-600 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRentNow(product)
+                        }}
+                      >
                         Rent Now
                       </button>
                       <button className="flex-1 px-3 py-2 bg-beige-500 text-midnight-800 text-sm rounded-md hover:bg-beige-600 transition-colors">
@@ -381,6 +365,39 @@ const Products = () => {
           </div>
         </div>
       </div>
+
+      {/* Rental Form Modal */}
+      {showRentalForm && selectedProduct && (
+        <RentalForm
+          product={selectedProduct}
+          onClose={() => {
+            setShowRentalForm(false)
+            setSelectedProduct(null)
+          }}
+        />
+      )}
+
+      {/* Product Form Modal */}
+      {showProductForm && (
+        <ProductForm
+          onClose={() => {
+            setShowProductForm(false)
+            // Clean up ?new=1 from URL if present
+            if (searchParams.get('new') === '1') {
+              searchParams.delete('new')
+              setSearchParams(searchParams, { replace: true })
+            }
+          }}
+          onCreated={() => {
+            setShowProductForm(false)
+            if (searchParams.get('new') === '1') {
+              searchParams.delete('new')
+              setSearchParams(searchParams, { replace: true })
+            }
+            loadProducts()
+          }}
+        />
+      )}
     </div>
   )
 }

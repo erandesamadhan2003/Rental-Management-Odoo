@@ -5,8 +5,25 @@ import ExcelJS from 'exceljs';
 // Example CRUD endpoints (add your own as needed)
 export const getAllReports = async (req, res) => {
   try {
-    const reports = await Report.find();
-    res.json({ success: true, reports });
+    const { clerkId, role, status, page = 1, limit = 20 } = req.query;
+
+    const filter = {};
+    if (status) filter.status = status;
+    if (clerkId) {
+      // If role=renter, filter by reports created by that renter (reportedBy via bookings)
+      // For simplicity, we filter by reportedBy via User clerkId lookup on client; here we only support bookings pre-linked
+      // Leaving as no-op for clerkId unless we expand schema; reports still accessible globally.
+    }
+
+    const numericLimit = Math.min(Number(limit) || 20, 100);
+    const numericPage = Math.max(Number(page) || 1, 1);
+
+    const [reports, total] = await Promise.all([
+      Report.find(filter).sort({ createdAt: -1 }).limit(numericLimit).skip((numericPage - 1) * numericLimit),
+      Report.countDocuments(filter),
+    ]);
+
+    res.json({ success: true, reports, pagination: { page: numericPage, limit: numericLimit, total, pages: Math.ceil(total / numericLimit) } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch reports', error: error.message });
   }

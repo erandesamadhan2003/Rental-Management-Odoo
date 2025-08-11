@@ -328,7 +328,7 @@ const Products = () => {
                     <div className="flex justify-between items-center mb-4">
                       <div>
                         <span className="text-sm text-navy-600">Daily Rate</span>
-                        <p className="text-xl font-bold text-midnight-800">${product.price}</p>
+                        <p className="text-xl font-bold text-midnight-800">₹{product.price}</p>
                       </div>
                       <div className="text-right">
                         <span className="text-sm text-navy-600">In Stock</span>

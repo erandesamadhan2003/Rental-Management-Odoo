@@ -12,6 +12,7 @@ import Products from './components/Products'
 import Orders from './components/Orders'
 import Customers from './components/Customers'
 import Reports from './components/Reports'
+import Notifications from './components/Notifications'
 import Settings from './components/Settings'
 import ClerkUserSync from './components/ClerkUserSync'
 
@@ -73,6 +74,14 @@ const router = createBrowserRouter([
     element: (
       <SignedIn>
         <Reports />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/notifications',
+    element: (
+      <SignedIn>
+        <Notifications />
       </SignedIn>
     )
   },

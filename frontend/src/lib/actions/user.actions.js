@@ -41,8 +41,9 @@ export async function createUser(user) {
     if (!response.ok) {
       throw new Error('Failed to create user')
     }
-
+    
     const newUser = await response.json()
+    console.log(newUser);
     return newUser
   } catch (error) {
     handleError(error)

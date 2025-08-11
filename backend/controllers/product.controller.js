@@ -9,7 +9,23 @@ const handleError = (res, error, message = "An error occurred", status = 500) =>
 // Create product
 export const createProduct = async (req, res) => {
   try {
-    const { clerkId, title, description, category, pricePerHour, pricePerDay, pricePerWeek, location, images, availability } = req.body;
+    const { 
+      clerkId, 
+      title, 
+      description, 
+      category, 
+      brand,
+      tags,
+      targetAudience,
+      pricePerHour, 
+      pricePerDay, 
+      pricePerWeek, 
+      location, 
+      pickupLocation,
+      dropLocation,
+      images, 
+      availability 
+    } = req.body;
 
     const owner = await User.findOne({ clerkId });
     if (!owner) return res.status(404).json({ success: false, message: "Owner not found" });
@@ -20,12 +36,18 @@ export const createProduct = async (req, res) => {
       title,
       description,
       category,
+      brand,
+      tags: Array.isArray(tags) ? tags : (typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(Boolean) : []),
+      targetAudience,
       pricePerHour,
       pricePerDay,
       pricePerWeek,
       location,
+      pickupLocation,
+      dropLocation,
       images,
-      availability
+      availability,
+      status: 'approved'
     });
 
     res.status(201).json({ success: true, message: "Product created", product });
@@ -34,10 +56,22 @@ export const createProduct = async (req, res) => {
   }
 };
 
-// Get all approved products
+// Get products with optional filters
 export const getAllProducts = async (req, res) => {
   try {
-    const products = await Product.find({ status: "approved" }).populate("ownerId", "username email");
+    const { ownerClerkId, ownerId, status = 'approved', q, category, brand, targetAudience } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (ownerClerkId) filter.ownerClerkId = ownerClerkId;
+    if (ownerId) filter.ownerId = ownerId;
+    if (category) filter.category = category;
+    if (brand) filter.brand = brand;
+    if (targetAudience) filter.targetAudience = targetAudience;
+    if (q) {
+      const regex = new RegExp(q, 'i');
+      filter.$or = [{ title: regex }, { description: regex }, { category: regex }, { brand: regex }];
+    }
+    const products = await Product.find(filter).populate("ownerId", "username email firstName lastName");
     res.status(200).json({ success: true, products });
   } catch (error) {
     handleError(res, error, "Failed to fetch products");
@@ -47,7 +81,7 @@ export const getAllProducts = async (req, res) => {
 // Get product by ID
 export const getProductById = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).populate("ownerId", "username email");
+    const product = await Product.findById(req.params.id).populate("ownerId", "username email firstName lastName");
     if (!product) return res.status(404).json({ success: false, message: "Product not found" });
     res.status(200).json({ success: true, product });
   } catch (error) {

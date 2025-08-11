@@ -134,14 +134,14 @@ const Home = () => {
     {
       name: 'John Smith',
       role: 'Construction Manager at BuildCorp',
-      content: 'RentalPro has transformed how we handle equipment rentals. The platform is intuitive and the equipment quality is outstanding.',
+      content: 'Reservelt has transformed how we handle equipment rentals. The platform is intuitive and the equipment quality is outstanding.',
       avatar: '👨‍💼',
       rating: 5
     },
     {
       name: 'Sarah Johnson',
       role: 'Project Director at InfraTech',
-      content: 'Exceptional service and reliability. We\'ve been using RentalPro for 2 years and have never been disappointed.',
+      content: 'Exceptional service and reliability. We\'ve been using Reservelt for 2 years and have never been disappointed.',
       avatar: '👩‍💼',
       rating: 5
     },
@@ -265,7 +265,7 @@ const Home = () => {
                   <span className="block text-5xl md:text-6xl text-gray-700">into life</span>
                 </h1>
                 <p className="text-xl text-gray-600 leading-relaxed max-w-lg stagger-item">
-                  When it comes to heavy equipment hiring, RentalPro 
+                  When it comes to heavy equipment hiring, Reservelt 
                   covers everything from excavators to the latest 
                   and greatest design trends.
                 </p>
@@ -353,7 +353,7 @@ const Home = () => {
                       <h3 className="text-2xl font-bold text-gray-900 transition-colors duration-300 hover:text-emerald-600">CAT Excavator 320</h3>
                       <p className="text-gray-600 transition-colors duration-300">Professional grade excavator for heavy construction work</p>
                       <div className="flex items-center justify-between">
-                        <span className="text-2xl font-bold text-emerald-600 animate-gradient-x">$1,200</span>
+                        <span className="text-2xl font-bold text-emerald-600 animate-gradient-x">₹1,200</span>
                         <span className="text-gray-500">/day</span>
                       </div>
                     </div>
@@ -642,7 +642,7 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
             <div className="inline-flex items-center px-4 py-2 bg-emerald-100 rounded-full text-emerald-700 text-sm font-medium mb-6">
-              ⚡ Why Choose RentalPro?
+              ⚡ Why Choose Reservelt?
             </div>
             <h2 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
               Premium Equipment
@@ -968,7 +968,7 @@ const Home = () => {
               <span className="block">with Premium Equipment</span>
             </h2>
             <p className="text-xl text-emerald-100 mb-12 max-w-3xl mx-auto leading-relaxed">
-              Join thousands of satisfied customers who trust RentalPro for their equipment needs. 
+              Join thousands of satisfied customers who trust Reservelt for their equipment needs. 
               Get started today and experience the difference professional-grade equipment makes.
             </p>
             <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
@@ -1011,7 +1011,7 @@ const Home = () => {
                 <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center">
                   <span className="text-white font-bold text-xl">R</span>
                 </div>
-                <span className="text-3xl font-bold">RentalPro</span>
+                <span className="text-3xl font-bold">Reservelt</span>
               </div>
               <p className="text-gray-300 mb-8 max-w-md text-lg leading-relaxed">
                 Your trusted partner for premium equipment rental solutions. 
@@ -1059,7 +1059,7 @@ const Home = () => {
           
           <div className="border-t border-gray-700 mt-16 pt-8 text-center">
             <p className="text-gray-400 text-lg">
-              © 2024 RentalPro. All rights reserved. | Built with ❤️ for the rental industry.
+              © 2024 Reservelt. All rights reserved. | Built with ❤️ for the rental industry.
             </p>
           </div>
         </div>

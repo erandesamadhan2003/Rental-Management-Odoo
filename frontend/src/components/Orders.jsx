@@ -1,21 +1,67 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import Navbar from './Navbar'
+import { useUser } from '@clerk/clerk-react'
+import { getUserBookings } from '../lib/actions/booking.actions'
 
 const Orders = () => {
+  const { user } = useUser()
+  const [bookings, setBookings] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        setLoading(true)
+        setError('')
+        const data = user?.id ? await getUserBookings(user.id) : []
+        if (!cancelled) setBookings(data || [])
+      } catch (e) {
+        if (!cancelled) setError('Failed to load orders')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [user?.id])
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-beige-50 via-purple-50 to-navy-50">
       <Navbar />
       
       <div className="container mx-auto px-6 py-8">
-        <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-md border border-purple-200 p-8 text-center">
-          <h1 className="text-3xl font-bold text-midnight-800 mb-4">Orders Management</h1>
-          <p className="text-navy-600 mb-6">Manage all rental orders and bookings</p>
-          <div className="w-16 h-16 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </div>
-          <p className="text-navy-500">Coming Soon...</p>
+        <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-md border border-purple-200 p-8">
+          <h1 className="text-3xl font-bold text-midnight-800 mb-6">Orders Management</h1>
+          {loading && <div className="text-navy-600">Loading...</div>}
+          {error && <div className="text-red-600">{error}</div>}
+          {!loading && !error && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-navy-600 border-b">
+                    <th className="py-2 pr-4">Booking</th>
+                    <th className="py-2 pr-4">Product</th>
+                    <th className="py-2 pr-4">Dates</th>
+                    <th className="py-2 pr-4">Total</th>
+                    <th className="py-2 pr-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bookings.map(b => (
+                    <tr key={b._id} className="border-b">
+                      <td className="py-2 pr-4 font-mono">{b._id.slice(-6)}</td>
+                      <td className="py-2 pr-4">{b.productId?.title || '-'}</td>
+                      <td className="py-2 pr-4">{new Date(b.startDate).toLocaleDateString()} - {new Date(b.endDate).toLocaleDateString()}</td>
+                      <td className="py-2 pr-4">₹{b.totalPrice}</td>
+                      <td className="py-2 pr-4 capitalize">{b.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>

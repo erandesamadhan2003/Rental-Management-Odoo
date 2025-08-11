@@ -1,6 +1,11 @@
 import express from "express";
 import {
   createBooking,
+  createRentalRequest,
+  acceptRentalRequest,
+  rejectRentalRequest,
+  listBookings,
+  getBookingById,
   initiateBookingPayment,
   confirmBookingPayment,
   confirmPickup,
@@ -9,6 +14,19 @@ import {
 } from "../controllers/booking.controller.js";
 
 const router = express.Router();
+
+// List bookings
+router.get('/', listBookings);
+
+// Get booking by ID
+router.get('/:id', getBookingById);
+
+// Create rental request
+router.post('/rental-request', createRentalRequest);
+
+// Owner actions on rental requests
+router.put('/:bookingId/accept', acceptRentalRequest);
+router.put('/:bookingId/reject', rejectRentalRequest);
 
 // Create booking
 router.post("/", createBooking);

@@ -1,82 +1,62 @@
-import Stripe from "stripe";
+// Mock payment service for testing - replace with actual Stripe integration in production
 
-// Initialize Stripe instance
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-12-18.acacia",
-});
-
-// Create Stripe payment intent for booking
-export const createStripePaymentIntent = async (amount, currency = "usd", bookingId, metadata = {}) => {
-  try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
-      currency,
-      metadata: {
-        bookingId,
-        ...metadata
-      },
-      automatic_payment_methods: {
-        enabled: true,
-      },
-    });
-    
-    return paymentIntent;
-  } catch (error) {
-    console.error("Error creating Stripe payment intent:", error);
-    throw error;
+// Mock Stripe payment intent creation
+export const createStripePaymentIntent = async (amount, currency, bookingId, metadata) => {
+  // In production, this would call Stripe API
+  // For now, return a mock payment intent
+  return {
+    id: `pi_mock_${Date.now()}`,
+    client_secret: `pi_mock_${Date.now()}_secret_${Math.random().toString(36).substr(2, 9)}`,
+    amount: amount * 100, // Convert to cents
+    currency,
+    status: 'requires_payment_method',
+    metadata
   }
-};
+}
 
-// Confirm Stripe payment
+// Mock Stripe payment confirmation
 export const confirmStripePayment = async (paymentIntentId) => {
-  try {
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-    return paymentIntent;
-  } catch (error) {
-    console.error("Error confirming Stripe payment:", error);
-    throw error;
+  // In production, this would verify the payment with Stripe
+  // For now, return a mock successful payment
+  return {
+    id: paymentIntentId,
+    status: 'succeeded',
+    latest_charge: `ch_mock_${Date.now()}`,
+    amount: 1000, // Mock amount in cents
+    currency: 'usd'
   }
-};
+}
 
-// Create Stripe transfer to product owner (platform fee deducted)
-export const createStripeTransfer = async (amount, destinationAccountId, metadata = {}) => {
-  try {
-    const transfer = await stripe.transfers.create({
-      amount: Math.round(amount * 100), // Convert to cents
-      currency: "usd",
-      destination: destinationAccountId,
-      metadata,
-    });
-    
-    return transfer;
-  } catch (error) {
-    console.error("Error creating Stripe transfer:", error);
-    throw error;
+// Mock Stripe transfer creation
+export const createStripeTransfer = async (amount, destinationAccountId, metadata) => {
+  // In production, this would create a transfer to the owner's Stripe Connect account
+  // For now, return a mock transfer
+  return {
+    id: `tr_mock_${Date.now()}`,
+    amount: amount * 100, // Convert to cents
+    currency: 'usd',
+    destination: destinationAccountId,
+    status: 'paid',
+    metadata
   }
-};
+}
 
-// Refund Stripe payment to renter
+// Mock Stripe payment refund
 export const refundStripePayment = async (paymentIntentId, amount) => {
-  try {
-    const refund = await stripe.refunds.create({
-      payment_intent: paymentIntentId,
-      amount: Math.round(amount * 100), // Convert to cents
-    });
-    
-    return refund;
-  } catch (error) {
-    console.error("Error refunding Stripe payment:", error);
-    throw error;
+  // In production, this would create a refund through Stripe
+  // For now, return a mock refund
+  return {
+    id: `re_mock_${Date.now()}`,
+    payment_intent: paymentIntentId,
+    amount: amount * 100, // Convert to cents
+    currency: 'usd',
+    status: 'succeeded'
   }
-};
+}
 
-// Get Stripe account details for payout
-export const getStripeAccount = async (accountId) => {
-  try {
-    const account = await stripe.accounts.retrieve(accountId);
-    return account;
-  } catch (error) {
-    console.error("Error getting Stripe account:", error);
-    throw error;
-  }
-};
+// Note: Replace these mock functions with actual Stripe API calls in production
+// You'll need to:
+// 1. Install stripe package: npm install stripe
+// 2. Set up Stripe environment variables
+// 3. Initialize Stripe with your secret key
+// 4. Replace mock functions with actual Stripe API calls

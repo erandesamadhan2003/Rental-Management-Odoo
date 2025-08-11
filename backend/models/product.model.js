@@ -12,10 +12,15 @@ const productSchema = new mongoose.Schema(
     title: { type: String, required: true },
     description: { type: String, required: true },
     category: { type: String, required: true },
+    brand: { type: String, required: true },
+    tags: [{ type: String }], // e.g., ['sports', 'badminton', 'outdoor']
+    targetAudience: { type: String, required: true }, // e.g., 'beginners', 'professionals', 'kids'
     pricePerHour: Number,
     pricePerDay: Number,
     pricePerWeek: Number,
     location: { type: String, required: true },
+    pickupLocation: { type: String, required: true },
+    dropLocation: { type: String, required: true },
     images: [String],
     availability: [availabilitySchema],
     status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" }

@@ -50,14 +50,14 @@ const Home = () => {
     {
       name: 'John Smith',
       role: 'Construction Manager at BuildCorp',
-      content: 'RentalPro has transformed how we handle equipment rentals. The platform is intuitive and the equipment quality is outstanding.',
+      content: 'Reservelt has transformed how we handle equipment rentals. The platform is intuitive and the equipment quality is outstanding.',
       avatar: '👨‍💼',
       rating: 5
     },
     {
       name: 'Sarah Johnson',
       role: 'Project Director at InfraTech',
-      content: 'Exceptional service and reliability. We\'ve been using RentalPro for 2 years and have never been disappointed.',
+      content: 'Exceptional service and reliability. We\'ve been using Reservelt for 2 years and have never been disappointed.',
       avatar: '👩‍💼',
       rating: 5
     },
@@ -190,7 +190,7 @@ const Home = () => {
                       <div className="bg-white/20 rounded-lg p-4">
                         <div className="flex justify-between items-center">
                           <span>Revenue Today</span>
-                          <span className="font-bold">$12,450</span>
+                          <span className="font-bold">₹12,450</span>
                         </div>
                       </div>
                     </div>
@@ -203,7 +203,7 @@ const Home = () => {
                       </div>
                       <div>
                         <div className="font-semibold text-navy-700">Excavator CAT 320</div>
-                        <div className="text-sm text-navy-500">Available • $1,200/day</div>
+                        <div className="text-sm text-navy-500">Available • ₹1,200/day</div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3 p-3 bg-beige-50 rounded-lg">
@@ -212,7 +212,7 @@ const Home = () => {
                       </div>
                       <div>
                         <div className="font-semibold text-navy-700">Crane Liebherr</div>
-                        <div className="text-sm text-navy-500">Rented • $2,500/day</div>
+                        <div className="text-sm text-navy-500">Rented • ₹2,500/day</div>
                       </div>
                     </div>
                   </div>
@@ -228,7 +228,7 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-midnight-800 to-navy-600 bg-clip-text text-transparent mb-4">
-              Why Choose RentalPro?
+              Why Choose Reservelt?
             </h2>
             <p className="text-xl text-navy-600 max-w-3xl mx-auto">
               We provide comprehensive equipment rental solutions with cutting-edge technology and exceptional service standards.
@@ -399,7 +399,7 @@ const Home = () => {
             Ready to Transform Your Projects?
           </h2>
           <p className="text-xl text-purple-100 mb-8 max-w-3xl mx-auto">
-            Join thousands of satisfied customers who trust RentalPro for their equipment needs. 
+            Join thousands of satisfied customers who trust Reservelt for their equipment needs. 
             Get started today and experience the difference.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -441,7 +441,7 @@ const Home = () => {
                 <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-navy-600 rounded-xl flex items-center justify-center">
                   <span className="text-white font-bold text-lg">R</span>
                 </div>
-                <span className="text-2xl font-bold">RentalPro</span>
+                <span className="text-2xl font-bold">Reservelt</span>
               </div>
               <p className="text-purple-200 mb-6 max-w-md">
                 Your trusted partner for premium equipment rental solutions. 
@@ -483,7 +483,7 @@ const Home = () => {
           
           <div className="border-t border-purple-700 mt-12 pt-8 text-center">
             <p className="text-purple-200">
-              © 2024 RentalPro. All rights reserved. | Built with ❤️ for the rental industry.
+              © 2024 Reservelt. All rights reserved. | Built with ❤️ for the rental industry.
             </p>
           </div>
         </div>

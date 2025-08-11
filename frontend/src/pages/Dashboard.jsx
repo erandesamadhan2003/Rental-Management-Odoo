@@ -7,7 +7,7 @@ const dashboardData = {
     { label: 'Total Products', value: 12, color: 'bg-blue-500', icon: '📦' },
     { label: 'Active Rentals', value: 5, color: 'bg-green-500', icon: '✅' },
     { label: 'Pending Orders', value: 3, color: 'bg-yellow-500', icon: '⏳' },
-    { label: 'Revenue', value: '$1,250.00', color: 'bg-purple-500', icon: '💰' }
+    { label: 'Revenue', value: '₹1,250.00', color: 'bg-purple-500', icon: '💰' }
   ],
   quickActions: [
     { label: 'Add New Product', link: '/add-product', icon: '➕' },
