@@ -19,8 +19,13 @@ const bookingSchema = new mongoose.Schema(
       enum: ["requested", "accepted", "rejected", "pending_payment", "confirmed", "in_rental", "cancelled", "completed"], 
       default: "requested" 
     },
-    paymentStatus: { type: String, enum: ["unpaid", "paid", "refunded"], default: "unpaid" },
+    paymentStatus: { type: String, enum: ["unpaid", "pending", "paid", "refunded", "failed"], default: "unpaid" },
 
+    // Stripe payment fields
+    stripePaymentIntentId: { type: String },
+    stripeSessionId: { type: String },
+    stripeCustomerId: { type: String },
+    
     paymentId: { type: mongoose.Schema.Types.ObjectId, ref: "Payment" },
 
     pickupStatus: { type: String, enum: ["pending", "scheduled", "completed"], default: "pending" },

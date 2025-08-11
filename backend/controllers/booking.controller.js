@@ -3,7 +3,7 @@ import Payment from "../models/payment.model.js";
 import User from "../models/user.js";
 import Notification from "../models/notification.model.js";
 import NotificationService from "../services/notification.service.js";
-import { createStripePaymentIntent, confirmStripePayment, createStripeTransfer, refundStripePayment } from "../services/payment.service.js";
+import { createPaymentIntent, createCheckoutSession, confirmPayment, retrieveCheckoutSession } from "../services/stripe.service.js";
 import { sendEmail } from '../services/email.service.js';
 import { createInvoiceForBooking } from './invoice.controller.js';
 
@@ -348,81 +348,208 @@ export const rejectRentalRequest = async (req, res) => {
   }
 };
 
-// Start payment process
+// Start payment process with Stripe
 export const initiateBookingPayment = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const booking = await Booking.findById(bookingId);
-    if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
-
-    const paymentIntent = await createStripePaymentIntent(
-      booking.totalPrice, 
-      "usd", 
-      bookingId,
-      {
-        renterId: booking.renterId.toString(),
-        ownerId: booking.ownerId.toString(),
-        productId: booking.productId.toString()
-      }
-    );
-
-    res.json({ 
-      success: true, 
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
-      amount: paymentIntent.amount
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to initiate payment", error: error.message });
-  }
-};
-
-// Confirm payment
-export const confirmBookingPayment = async (req, res) => {
-  try {
-    const { bookingId } = req.params;
-    const { paymentIntentId } = req.body;
-
-    const paymentIntent = await confirmStripePayment(paymentIntentId);
+    const { paymentMethod = 'card' } = req.body;
     
-    if (paymentIntent.status !== 'succeeded') {
+    const booking = await Booking.findById(bookingId)
+      .populate('productId', 'title description images')
+      .populate('renterId', 'email firstName lastName')
+      .populate('ownerId', 'email firstName lastName');
+      
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.status !== "pending_payment") {
       return res.status(400).json({ 
         success: false, 
-        message: "Payment not successful", 
-        status: paymentIntent.status 
+        message: "Booking is not ready for payment" 
       });
     }
 
-    const booking = await Booking.findById(bookingId).populate('productId', 'title');
-    if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
+    if (paymentMethod === 'checkout') {
+      // Create Stripe Checkout Session
+      const checkoutData = {
+        productName: booking.productId.title || 'Equipment Rental',
+        productDescription: `Rental from ${booking.startDate.toDateString()} to ${booking.endDate.toDateString()}`,
+        amount: booking.totalPrice,
+        currency: 'usd',
+        bookingId: booking._id,
+        successUrl: `${process.env.CLIENT_URL}/payment/success`,
+        cancelUrl: `${process.env.CLIENT_URL}/payment/cancel`,
+        customerEmail: booking.renterId.email,
+      };
 
-    if (booking.status !== "pending_payment") {
-      return res.status(400).json({ success: false, message: "Booking is not ready for payment" });
+      const session = await createCheckoutSession(checkoutData);
+      
+      if (!session.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Failed to create payment session",
+          error: session.error
+        });
+      }
+
+      // Save session ID to booking
+      booking.stripeSessionId = session.sessionId;
+      booking.paymentStatus = "pending";
+      await booking.save();
+
+      return res.json({
+        success: true,
+        sessionId: session.sessionId,
+        checkoutUrl: session.url,
+        message: "Checkout session created successfully"
+      });
+    } else {
+      // Create Payment Intent for card payments
+      const paymentIntent = await createPaymentIntent(
+        booking.totalPrice,
+        'usd',
+        {
+          bookingId: booking._id.toString(),
+          renterId: booking.renterId._id.toString(),
+          ownerId: booking.ownerId._id.toString(),
+          productId: booking.productId._id.toString()
+        }
+      );
+
+      if (!paymentIntent.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Failed to create payment intent",
+          error: paymentIntent.error
+        });
+      }
+
+      // Save payment intent ID to booking
+      booking.stripePaymentIntentId = paymentIntent.paymentIntentId;
+      booking.paymentStatus = "pending";
+      await booking.save();
+
+      return res.json({
+        success: true,
+        clientSecret: paymentIntent.clientSecret,
+        paymentIntentId: paymentIntent.paymentIntentId,
+        amount: booking.totalPrice,
+        message: "Payment intent created successfully"
+      });
+    }
+  } catch (error) {
+    console.error('Payment initiation error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to initiate payment", 
+      error: error.message 
+    });
+  }
+};
+
+// Confirm payment after Stripe processing
+export const confirmBookingPayment = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { paymentIntentId, sessionId } = req.body;
+
+    const booking = await Booking.findById(bookingId)
+      .populate('productId', 'title')
+      .populate('renterId', 'email firstName lastName')
+      .populate('ownerId', 'email firstName lastName');
+      
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
     }
 
+    let paymentData = null;
+
+    if (sessionId) {
+      // Handle Checkout Session confirmation
+      const sessionResult = await retrieveCheckoutSession(sessionId);
+      
+      if (!sessionResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Failed to retrieve checkout session",
+          error: sessionResult.error
+        });
+      }
+
+      if (sessionResult.session.payment_status !== 'paid') {
+        return res.status(400).json({
+          success: false,
+          message: "Payment not completed",
+          status: sessionResult.session.payment_status
+        });
+      }
+
+      paymentData = sessionResult.session;
+    } else if (paymentIntentId) {
+      // Handle Payment Intent confirmation
+      const paymentResult = await confirmPayment(paymentIntentId);
+      
+      if (!paymentResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Failed to confirm payment",
+          error: paymentResult.error
+        });
+      }
+
+      if (paymentResult.status !== 'succeeded') {
+        return res.status(400).json({
+          success: false,
+          message: "Payment not successful",
+          status: paymentResult.status
+        });
+      }
+
+      paymentData = paymentResult.paymentIntent;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Payment ID or Session ID is required"
+      });
+    }
+
+    // Create payment record
     const payment = await Payment.create({
       bookingId,
-      renterId: booking.renterId,
+      renterId: booking.renterId._id,
       renterClerkId: booking.renterClerkId,
-      ownerId: booking.ownerId,
+      ownerId: booking.ownerId._id,
       ownerClerkId: booking.ownerClerkId,
       paymentGateway: "stripe",
-      gatewayPaymentId: paymentIntent.id,
-      gatewayChargeId: paymentIntent.latest_charge,
+      gatewayPaymentId: paymentData.id || paymentData.payment_intent,
       amount: booking.totalPrice,
       currency: "usd",
       platformFee: booking.platformFee,
       ownerAmount: booking.ownerAmount,
       paymentStatus: "successful",
-      paymentDate: new Date()
+      paymentDate: new Date(),
+      metadata: {
+        stripeSessionId: sessionId,
+        stripePaymentIntentId: paymentIntentId
+      }
     });
 
+    // Update booking status
     booking.paymentStatus = "paid";
     booking.status = "confirmed";
     booking.paymentId = payment._id;
     await booking.save();
 
-    // Create dynamic notifications for payment confirmation
+    // Create invoice for the payment
+    let invoice = null;
+    try {
+      invoice = await createInvoiceForBooking(booking._id);
+    } catch (invoiceError) {
+      console.error('Failed to create invoice:', invoiceError);
+    }
+
+    // Create notifications
     try {
       // Notify the renter about successful payment
       await NotificationService.createPaymentConfirmationNotification({
@@ -430,33 +557,67 @@ export const confirmBookingPayment = async (req, res) => {
         amount: booking.totalPrice,
         method: 'Credit Card',
         bookingId: booking._id,
-        productTitle: 'Rented Product' // You might want to populate product details
+        productTitle: booking.productId?.title || 'Rental Item'
       });
 
-      // Notify the owner about received payment
-      await NotificationService.createPaymentConfirmationNotification({
-        userClerkId: booking.ownerClerkId,
-        amount: booking.ownerAmount,
-        method: 'Transfer',
-        bookingId: booking._id,
-        productTitle: 'Your Product' // You might want to populate product details
-      });
-
-      // Update booking status notification for renter
+      // Notify the owner about confirmed booking
       await NotificationService.createBookingStatusNotification({
-        userClerkId: booking.renterClerkId,
+        userClerkId: booking.ownerClerkId,
         status: 'confirmed',
-        productTitle: 'Your Rental',
+        productTitle: booking.productId?.title || 'Your Product',
         bookingId: booking._id
       });
     } catch (notificationError) {
       console.error('Failed to create payment notifications:', notificationError);
-      // Don't fail the payment confirmation if notifications fail
     }
 
-    res.json({ success: true, booking, payment });
+    // Send email notifications
+    try {
+      // Email to renter
+      await sendEmail({
+        to: booking.renterId.email,
+        subject: `Payment Confirmed - ${booking.productId?.title}`,
+        html: `
+          <h2>Payment Successful!</h2>
+          <p>Your payment for <strong>${booking.productId?.title}</strong> has been processed successfully.</p>
+          <p><strong>Amount Paid:</strong> $${booking.totalPrice.toFixed(2)}</p>
+          <p><strong>Booking ID:</strong> ${booking._id}</p>
+          <p><strong>Rental Period:</strong> ${booking.startDate.toDateString()} to ${booking.endDate.toDateString()}</p>
+          <p>The owner will contact you soon with pickup/delivery details.</p>
+        `
+      });
+
+      // Email to owner
+      await sendEmail({
+        to: booking.ownerId.email,
+        subject: `Booking Confirmed - ${booking.productId?.title}`,
+        html: `
+          <h2>Booking Confirmed!</h2>
+          <p>Payment for your product <strong>${booking.productId?.title}</strong> has been received.</p>
+          <p><strong>Renter:</strong> ${booking.renterId.firstName} ${booking.renterId.lastName}</p>
+          <p><strong>Amount:</strong> $${booking.ownerAmount.toFixed(2)} (after platform fee)</p>
+          <p><strong>Rental Period:</strong> ${booking.startDate.toDateString()} to ${booking.endDate.toDateString()}</p>
+          <p>Please prepare the item and contact the renter at ${booking.renterId.email} for pickup/delivery arrangements.</p>
+        `
+      });
+    } catch (emailError) {
+      console.error('Failed to send email notifications:', emailError);
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Payment confirmed successfully",
+      booking, 
+      payment,
+      invoice: invoice || null
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Payment confirmation failed", error: error.message });
+    console.error('Payment confirmation error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Payment confirmation failed", 
+      error: error.message 
+    });
   }
 };
 

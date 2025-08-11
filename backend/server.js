@@ -18,6 +18,7 @@ import reportRoutes from './routes/report.routes.js';
 import pricelistRoutes from './routes/pricelist.routes.js';
 import invoiceRoutes from './routes/invoice.routes.js';
 import reminderRoutes from './routes/reminder.routes.js';
+import stripeRoutes from './routes/stripe.routes.js';
 
 // Import cron job service
 import rentalReminderCron from './services/rentalReminder.cron.js';
@@ -72,6 +73,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/pricelists', pricelistRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/reminders', reminderRoutes);
+app.use('/api/stripe', stripeRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
