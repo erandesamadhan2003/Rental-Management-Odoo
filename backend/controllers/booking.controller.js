@@ -420,6 +420,16 @@ export const acceptRentalRequest = async (req, res) => {
       console.error('Failed to create invoice:', invoiceError);
       // Don't fail the approval if invoice creation fails
     }
+    
+    // Generate rental agreement document
+    try {
+      const documentService = await import('../services/document.service.js');
+      const rentalAgreement = await documentService.generateRentalAgreement(booking._id);
+      console.log('Rental agreement generated:', rentalAgreement?._id);
+    } catch (documentError) {
+      console.error('Failed to generate rental agreement:', documentError);
+      // Continue even if document generation fails
+    }
 
     // Notify renter that request was accepted and payment is needed
     try {
@@ -983,6 +993,16 @@ export const completeBooking = async (req, res) => {
     if (dropLocation) booking.dropLocation = dropLocation;
     await booking.save();
 
+    // Generate return document
+    try {
+      const documentService = await import('../services/document.service.js');
+      const returnDocument = await documentService.createReturnDocument(booking._id);
+      console.log('Return document generated:', returnDocument?._id);
+    } catch (documentError) {
+      console.error('Failed to generate return document:', documentError);
+      // Continue even if document generation fails
+    }
+
     // Create notification for owner
     await Notification.create({
       userId: booking.ownerId,
@@ -1061,6 +1081,16 @@ export const updateBookingPaymentStatus = async (req, res) => {
     booking.status = "paid";
     booking.paymentStatus = paymentStatus;
     await booking.save();
+    
+    // Generate pickup document
+    try {
+      const documentService = await import('../services/document.service.js');
+      const pickupDocument = await documentService.createPickupDocument(booking._id);
+      console.log('Pickup document generated:', pickupDocument?._id);
+    } catch (documentError) {
+      console.error('Failed to generate pickup document:', documentError);
+      // Continue even if document generation fails
+    }
 
     // Create payment record
     const payment = await Payment.create({

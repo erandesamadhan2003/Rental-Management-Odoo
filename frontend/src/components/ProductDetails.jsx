@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Navbar from './Navbar'
+import axios from 'axios'
 
 const ProductDetails = () => {
   const navigate = useNavigate()
@@ -12,56 +13,57 @@ const ProductDetails = () => {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [activeTab, setActiveTab] = useState('overview')
+  const [availabilityStatus, setAvailabilityStatus] = useState(null)
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
+  const [availableDateRanges, setAvailableDateRanges] = useState([])
 
-  // Sample product data
+  // Fetch product data from API
   useEffect(() => {
-    // In real app, fetch from API
-    const sampleProduct = {
-      id: productId || '1',
-      name: 'Professional DSLR Camera',
-      category: 'Electronics',
-      sku: 'CAM-001',
-      dailyRate: 50,
-      weeklyRate: 300,
-      monthlyRate: 1000,
-      securityDeposit: 200,
-      description: 'High-quality DSLR camera perfect for professional photography and videography. Includes multiple lenses and accessories.',
-      images: [
-        '/api/placeholder/600/400',
-        '/api/placeholder/600/400',
-        '/api/placeholder/600/400',
-        '/api/placeholder/600/400'
-      ],
-      specifications: {
-        brand: 'Canon',
-        model: 'EOS 5D Mark IV',
-        resolution: '30.4 MP',
-        iso: '100-32000',
-        weight: '800g',
-        battery: 'LP-E6N'
-      },
-      features: [
-        '4K video recording',
-        'Dual pixel autofocus',
-        'Built-in WiFi',
-        'Weather sealed',
-        'Professional lens mount'
-      ],
-      included: [
-        'Camera body',
-        '24-70mm lens',
-        '50mm lens',
-        'Battery charger',
-        'Memory cards',
-        'Camera bag'
-      ],
-      availability: 'available',
-      rating: 4.8,
-      reviews: 24,
-      location: 'Main Warehouse'
+    const fetchProduct = async () => {
+      try {
+        const response = await axios.get(`/api/products/${productId}`)
+        if (response.data.success) {
+          setProduct(response.data.product)
+        }
+      } catch (error) {
+        console.error('Error fetching product:', error)
+      }
     }
-    setProduct(sampleProduct)
+    
+    if (productId) {
+      fetchProduct()
+    }
   }, [productId])
+  
+  // Check availability when dates change
+  useEffect(() => {
+    const checkAvailability = async () => {
+      if (!productId || !startDate || !endDate) return
+      
+      setIsCheckingAvailability(true)
+      try {
+        const response = await axios.get(`/api/products/${productId}?startDate=${startDate}&endDate=${endDate}`)
+        if (response.data.success && response.data.availability) {
+          setAvailabilityStatus({
+            isAvailable: response.data.availability.isAvailable,
+            requestedDates: response.data.availability.requestedDates
+          })
+          
+          if (!response.data.availability.isAvailable) {
+            setAvailableDateRanges(response.data.availability.nextAvailableDates)
+          }
+        }
+      } catch (error) {
+        console.error('Error checking availability:', error)
+      } finally {
+        setIsCheckingAvailability(false)
+      }
+    }
+    
+    if (startDate && endDate) {
+      checkAvailability()
+    }
+  }, [productId, startDate, endDate])
 
   const calculateTotal = () => {
     if (!product) return 0
@@ -93,21 +95,60 @@ const ProductDetails = () => {
     alert('Product added to cart!')
   }
 
-  const handleRentNow = () => {
-    // Navigate to checkout with product data
-    navigate('/checkout', { 
-      state: { 
-        products: [{
-          productId: product.id,
-          name: product.name,
-          quantity,
-          rentalDays,
-          startDate,
-          endDate,
-          total: calculateTotal()
-        }]
+  const checkProductAvailability = async () => {
+    if (!productId || !startDate || !endDate) {
+      setAvailabilityStatus(null)
+      return
+    }
+    
+    setIsCheckingAvailability(true)
+    try {
+      const response = await axios.get(`/api/products/availability/${productId}`, {
+        params: { startDate, endDate }
+      })
+      
+      if (response.data.success) {
+        setAvailabilityStatus({
+          isAvailable: response.data.isAvailable,
+          requestedDates: { startDate, endDate }
+        })
+        
+        if (!response.data.isAvailable && response.data.nextAvailableDates) {
+          setAvailableDateRanges(response.data.nextAvailableDates)
+        }
       }
-    })
+    } catch (error) {
+      console.error('Error checking availability:', error)
+    } finally {
+      setIsCheckingAvailability(false)
+    }
+  }
+  
+  const handleRentNow = () => {
+    // Only proceed if product is available
+    if (availabilityStatus && availabilityStatus.isAvailable) {
+      navigate('/checkout', { 
+        state: { 
+          products: [{
+            productId: product.id,
+            name: product.name,
+            quantity,
+            rentalDays,
+            startDate,
+            endDate,
+            total: calculateTotal()
+          }]
+        }
+      })
+    } else {
+      // If not checked yet, check availability first
+      checkProductAvailability()
+    }
+  }
+  
+  const selectAvailableDateRange = (range) => {
+    setStartDate(range.startDate)
+    setEndDate(range.endDate)
   }
 
   if (!product) {
@@ -291,6 +332,53 @@ const ProductDetails = () => {
                     />
                   </div>
                 </div>
+                
+                {/* Availability Check */}
+                <div className="bg-purple-50 rounded-lg p-4">
+                  <button
+                    onClick={checkProductAvailability}
+                    disabled={!startDate || !endDate || isCheckingAvailability}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {isCheckingAvailability ? 'Checking...' : 'Check Availability'}
+                  </button>
+                  
+                  {isCheckingAvailability && (
+                    <div className="flex justify-center mt-3">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-700"></div>
+                    </div>
+                  )}
+                  
+                  {availabilityStatus && (
+                    <div className={`mt-3 p-3 rounded-lg ${availabilityStatus.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {availabilityStatus.isAvailable 
+                        ? 'Product is available for the selected dates!' 
+                        : 'Product is not available for the selected dates.'}
+                    </div>
+                  )}
+                  
+                  {/* Available Date Ranges */}
+                  {availabilityStatus && !availabilityStatus.isAvailable && availableDateRanges.length > 0 && (
+                    <div className="mt-3">
+                      <h4 className="font-medium text-navy-700 mb-2">Available Date Ranges:</h4>
+                      <div className="max-h-40 overflow-y-auto">
+                        {availableDateRanges.map((range, index) => (
+                          <div key={index} className="flex justify-between items-center p-2 border-b border-purple-200">
+                            <span className="text-sm text-navy-700">
+                              {new Date(range.startDate).toLocaleDateString()} - {new Date(range.endDate).toLocaleDateString()}
+                            </span>
+                            <button 
+                              className="bg-purple-500 text-white text-xs py-1 px-2 rounded-lg"
+                              onClick={() => selectAvailableDateRange(range)}
+                            >
+                              Select
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Total */}
                 <div className="bg-purple-50 rounded-lg p-4">
@@ -313,9 +401,11 @@ const ProductDetails = () => {
                   </button>
                   <button
                     onClick={handleRentNow}
-                    className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                    className={`w-full px-6 py-3 rounded-lg transition-colors font-medium ${(!availabilityStatus || availabilityStatus.isAvailable) ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-400 text-white cursor-not-allowed'}`}
+                    disabled={availabilityStatus && !availabilityStatus.isAvailable}
                   >
-                    Rent Now
+                    {(!startDate || !endDate) ? 'Select Dates to Rent' : 
+                     (availabilityStatus && !availabilityStatus.isAvailable) ? 'Not Available' : 'Rent Now'}
                   </button>
                 </div>
               </div>

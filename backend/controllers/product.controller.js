@@ -210,9 +210,148 @@ export const getProductById = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id).populate("ownerId", "username email firstName lastName");
     if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    
+    // Check if startDate and endDate query params are provided
+    const { startDate, endDate } = req.query;
+    
+    if (startDate && endDate) {
+      const requestedStartDate = new Date(startDate);
+      const requestedEndDate = new Date(endDate);
+      
+      // Get all bookings that overlap with the requested date range for this product
+      const Booking = mongoose.model('Booking');
+      const overlappingBookings = await Booking.find({
+        productId: product._id,
+        $and: [
+          { status: { $nin: ['rejected', 'cancelled'] } },
+          { $or: [
+            // Booking starts during requested period
+            { startDate: { $gte: requestedStartDate, $lte: requestedEndDate } },
+            // Booking ends during requested period
+            { endDate: { $gte: requestedStartDate, $lte: requestedEndDate } },
+            // Booking spans the entire requested period
+            { $and: [{ startDate: { $lte: requestedStartDate } }, { endDate: { $gte: requestedEndDate } }] }
+          ]}
+        ]
+      });
+      
+      // Check if product is available for the requested dates
+      const isAvailable = overlappingBookings.length === 0;
+      
+      // If not available, find next available dates
+      let nextAvailableDates = [];
+      
+      if (!isAvailable) {
+        // Get all bookings for this product sorted by start date
+        const allBookings = await Booking.find({
+          productId: product._id,
+          status: { $nin: ['rejected', 'cancelled'] },
+          endDate: { $gte: new Date() } // Only consider current and future bookings
+        }).sort({ startDate: 1 });
+        
+        // Find gaps between bookings for next available dates
+        if (allBookings.length > 0) {
+          // Start with today or requested start date (whichever is later)
+          let currentDate = new Date();
+          if (requestedStartDate > currentDate) {
+            currentDate = requestedStartDate;
+          }
+          
+          // Check for gaps between bookings
+          for (let i = 0; i < allBookings.length; i++) {
+            const booking = allBookings[i];
+            
+            // If current date is before booking start date, we found a gap
+            if (currentDate < booking.startDate) {
+              nextAvailableDates.push({
+                startDate: currentDate,
+                endDate: booking.startDate
+              });
+            }
+            
+            // Move current date to after this booking's end date
+            currentDate = new Date(booking.endDate);
+            currentDate.setDate(currentDate.getDate() + 1); // Add one day
+            
+            // If this is the last booking, add period after it
+            if (i === allBookings.length - 1) {
+              nextAvailableDates.push({
+                startDate: currentDate,
+                endDate: null // Indefinite end date
+              });
+            }
+          }
+        } else {
+          // No bookings at all, so available from now onwards
+          nextAvailableDates.push({
+            startDate: new Date(),
+            endDate: null // Indefinite end date
+          });
+        }
+      }
+      
+      return res.status(200).json({ 
+        success: true, 
+        product,
+        availability: {
+          isAvailable,
+          requestedDates: { startDate: requestedStartDate, endDate: requestedEndDate },
+          nextAvailableDates
+        }
+      });
+    }
+    
     res.status(200).json({ success: true, product });
   } catch (error) {
     handleError(res, error, "Failed to fetch product");
+  }
+};
+
+// Check product availability for specific dates
+export const checkProductAvailability = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { startDate, endDate } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, message: "Start date and end date are required" });
+    }
+    
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+    
+    const requestedStartDate = new Date(startDate);
+    const requestedEndDate = new Date(endDate);
+    
+    // Get all bookings that overlap with the requested date range
+    const Booking = mongoose.model('Booking');
+    const overlappingBookings = await Booking.find({
+      productId: product._id,
+      $and: [
+        { status: { $nin: ['rejected', 'cancelled'] } },
+        { $or: [
+          // Booking starts during requested period
+          { startDate: { $gte: requestedStartDate, $lte: requestedEndDate } },
+          // Booking ends during requested period
+          { endDate: { $gte: requestedStartDate, $lte: requestedEndDate } },
+          // Booking spans the entire requested period
+          { $and: [{ startDate: { $lte: requestedStartDate } }, { endDate: { $gte: requestedEndDate } }] }
+        ]}
+      ]
+    });
+    
+    // Check if product is available for the requested dates
+    const isAvailable = overlappingBookings.length === 0;
+    
+    res.status(200).json({ 
+      success: true, 
+      isAvailable,
+      requestedDates: { startDate: requestedStartDate, endDate: requestedEndDate }
+    });
+  } catch (error) {
+    handleError(res, error, "Failed to check product availability");
   }
 };
 

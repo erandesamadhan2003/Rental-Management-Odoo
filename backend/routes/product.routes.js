@@ -10,7 +10,8 @@ import {
   updateProduct,
   deleteProduct,
   approveProduct,
-  rejectProduct
+  rejectProduct,
+  checkProductAvailability
 } from "../controllers/product.controller.js";
 import { uploadBuffer } from '../services/cloudinary.service.js'
 
@@ -23,6 +24,7 @@ const upload = multer({ storage: multer.memoryStorage() })
 router.get("/", getAllProducts);
 router.get("/my/:clerkId", getMyProducts);
 router.get("/browse/:clerkId", getBrowseProducts);
+router.get("/availability/:productId", checkProductAvailability);
 router.get("/:id", getProductById);
 
 // Upload images to Cloudinary
