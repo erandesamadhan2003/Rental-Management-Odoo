@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import { sendEmail } from '../services/email.service.js';
 import { createInvoiceForBooking } from './invoice.controller.js';
 import { createStripePaymentIntent, confirmStripePayment } from '../services/payment.service.js';
+import NotificationService from '../services/notification.service.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2024-12-18.acacia",
@@ -16,6 +17,80 @@ export const getAllPayments = async (req, res) => {
     res.json({ success: true, payments });
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to fetch payments", error: error.message });
+  }
+};
+
+// Test payment methods configuration
+export const testPaymentMethods = async (req, res) => {
+  try {
+    const { amount = 5000, currency = 'inr' } = req.body;
+    
+    // Create a test payment intent to see available methods
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount,
+      currency: currency,
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: 'always'
+      },
+      metadata: {
+        test: 'true',
+        purpose: 'payment_method_testing'
+      }
+    });
+    
+    // Get account information
+    const account = await stripe.accounts.retrieve();
+    
+    res.json({
+      success: true,
+      paymentIntent: {
+        id: paymentIntent.id,
+        payment_method_types: paymentIntent.payment_method_types,
+        automatic_payment_methods: paymentIntent.automatic_payment_methods
+      },
+      account: {
+        id: account.id,
+        country: account.country,
+        default_currency: account.default_currency,
+        capabilities: account.capabilities
+      },
+      configuredMethods: 'automatic (all enabled methods)',
+      testCards: [
+        { type: 'Visa', number: '4242 4242 4242 4242', note: 'Add to Google Pay for testing' },
+        { type: 'Visa (debit)', number: '4000 0566 5566 5556', note: 'Good for Google Pay testing' },
+        { type: 'Mastercard', number: '5555 5555 5555 4444', note: 'Works with Google Pay' },
+        { type: 'Mastercard (debit)', number: '5200 8282 8282 8210', note: 'India-specific testing' },
+        { type: 'American Express', number: '3782 822463 10005', note: 'Premium card testing' },
+        { type: 'Discover', number: '6011 1111 1111 1117', note: 'US market testing' },
+        { type: 'JCB', number: '3566 0020 2036 0505', note: 'Asia-Pacific testing' },
+        { type: 'Diners Club', number: '3056 9300 0902 0004', note: 'Corporate card testing' }
+      ],
+      digitalWallets: {
+        googlePay: {
+          supported: true,
+          requirements: ['Chrome browser', 'Android device with Google Pay', 'Test cards in Google Pay'],
+          testing: 'Add test cards (4242...) to your Google Pay account for testing'
+        },
+        applePay: {
+          supported: true,
+          requirements: ['Safari browser', 'iOS device', 'macOS with Touch ID'],
+          testing: 'Available automatically on supported Apple devices'
+        },
+        paypal: {
+          supported: true,
+          methodId: 'cpmt_1Rv31gGzgYJAvIRf9aIhMlIm',
+          testing: 'Use PayPal sandbox account for testing'
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error testing payment methods:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to test payment methods', 
+      error: error.message 
+    });
   }
 };
 
@@ -44,19 +119,43 @@ export const initiatePayment = async (req, res) => {
       });
     }
     
+    // Validate minimum amount (Stripe requires at least 50 INR for INR currency)
+    const minimumAmount = 50; // ₹50 minimum
+    let paymentAmount = booking.totalPrice;
+    
+    if (paymentAmount < minimumAmount) {
+      console.log(`Amount ${paymentAmount} is below minimum ${minimumAmount}, adjusting to minimum`);
+      paymentAmount = minimumAmount;
+    }
+    
     // Create a payment intent with Stripe
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(booking.totalPrice * 100), // Convert to cents
+      amount: Math.round(paymentAmount * 100), // Convert to cents (paise for INR)
       currency: 'inr',
       metadata: {
         bookingId: booking._id.toString(),
         productId: booking.productId._id.toString(),
         renterId: booking.renterId.toString(),
-        ownerId: booking.ownerId.toString()
+        ownerId: booking.ownerId.toString(),
+        originalAmount: booking.totalPrice.toString(),
+        adjustedAmount: paymentAmount.toString()
       },
+      // Use automatic_payment_methods to enable all available methods including Google Pay
       automatic_payment_methods: {
         enabled: true,
+        allow_redirects: 'always' // Allow redirects for PayPal and other redirect-based methods
       },
+      // Additional configuration for better payment method support
+      shipping: {
+        address: {
+          country: 'IN', // Set default country to India for better regional support
+        },
+        name: booking.renterName || 'Customer'
+      },
+      // Ensure proper setup for digital wallets
+      description: `Rental payment for ${booking.productId?.name || 'product'}`,
+      // Use statement_descriptor_suffix instead of statement_descriptor for cards
+      statement_descriptor_suffix: 'RENTAL',
     });
     
     // Create a pending payment record
@@ -69,7 +168,7 @@ export const initiatePayment = async (req, res) => {
       paymentGateway: 'stripe',
       gatewayPaymentId: paymentIntent.id,
       clientSecret: paymentIntent.client_secret,
-      amount: booking.totalPrice,
+      amount: paymentAmount, // Use adjusted amount
       currency: 'inr',
       platformFee: booking.platformFee,
       ownerAmount: booking.ownerAmount,
@@ -84,7 +183,11 @@ export const initiatePayment = async (req, res) => {
         client_secret: paymentIntent.client_secret,
         amount: paymentIntent.amount,
         currency: paymentIntent.currency
-      }
+      },
+      originalAmount: booking.totalPrice,
+      adjustedAmount: paymentAmount,
+      isAmountAdjusted: paymentAmount !== booking.totalPrice,
+      minimumRequired: minimumAmount
     });
   } catch (error) {
     console.error('Error initiating payment:', error);
@@ -105,6 +208,22 @@ export const confirmPayment = async (req, res) => {
     const booking = await Booking.findById(id);
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+    
+    // Check if payment is already completed
+    const existingPayment = await Payment.findOne({ 
+      gatewayPaymentId: paymentIntentId,
+      status: 'completed'
+    });
+    
+    if (existingPayment) {
+      console.log('Payment already completed:', paymentIntentId);
+      return res.json({
+        success: true,
+        message: 'Payment already completed',
+        payment: existingPayment,
+        booking: booking
+      });
     }
     
     // Retrieve the payment intent from Stripe
@@ -133,10 +252,12 @@ export const confirmPayment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Payment record not found' });
     }
     
-    // Update booking status
-    booking.status = 'paid';
-    booking.paymentStatus = 'completed';
-    await booking.save();
+    // Update booking status only if not already updated
+    if (booking.paymentStatus !== 'paid') {
+      booking.status = 'confirmed'; // Use valid enum value
+      booking.paymentStatus = 'paid'; // Use valid enum value
+      await booking.save();
+    }
     
     // Generate invoice
     const invoice = await createInvoiceForBooking(booking._id);
@@ -401,6 +522,23 @@ const handlePaymentSuccess = async (paymentIntent) => {
     booking.status = "confirmed";
     booking.paymentId = payment._id;
     await booking.save();
+
+    // Send pickup notification to owner
+    try {
+      await NotificationService.createPaymentConfirmationPickupNotification({
+        ownerId: booking.ownerId._id,
+        ownerClerkId: booking.ownerClerkId,
+        renterName: `${booking.renterId?.firstName || ''} ${booking.renterId?.lastName || ''}`.trim() || 'Customer',
+        productTitle: booking.productId?.name || 'Product',
+        amount: payment.amount,
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        bookingId: booking._id
+      });
+      console.log('Pickup notification sent to owner');
+    } catch (notificationError) {
+      console.error('Failed to send pickup notification:', notificationError);
+    }
 
     console.log('Payment confirmed automatically for booking:', bookingId);
   } catch (error) {

@@ -369,6 +369,52 @@ class NotificationService {
       console.error('Error cleaning up notifications:', error)
     }
   }
+
+  // Create payment confirmation and pickup notification for owner
+  static async createPaymentConfirmationPickupNotification(notificationData) {
+    try {
+      const { 
+        ownerId, 
+        ownerClerkId,
+        renterName, 
+        productTitle, 
+        amount, 
+        startDate, 
+        endDate, 
+        bookingId 
+      } = notificationData;
+      
+      console.log('Creating payment confirmation pickup notification for owner:', { ownerClerkId, productTitle, bookingId });
+      
+      const notification = new Notification({
+        userId: ownerId,
+        userClerkId: ownerClerkId,
+        type: 'payment_confirmation',
+        message: `Payment received! ${renterName} has paid ₹${amount} for "${productTitle}". Prepare for pickup on ${new Date(startDate).toLocaleDateString()}.`,
+        relatedId: bookingId,
+        relatedType: 'booking',
+        metadata: {
+          productTitle,
+          renterName,
+          amount,
+          startDate,
+          endDate,
+          bookingId,
+          pickupDate: new Date(startDate).toLocaleDateString(),
+          rentalDuration: `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`,
+          actionRequired: true,
+          actions: ['download_pickup_document', 'contact_renter']
+        }
+      });
+      
+      const savedNotification = await notification.save();
+      console.log('Payment confirmation pickup notification created:', savedNotification._id);
+      return savedNotification;
+    } catch (error) {
+      console.error('Error creating payment confirmation pickup notification:', error);
+      throw error;
+    }
+  }
   
   // Get notification statistics
   static async getNotificationStats(userClerkId) {

@@ -18,6 +18,7 @@ const Payment = () => {
   const error = useSelector(state => state.bookings.error)
   
   const [paymentError, setPaymentError] = useState('')
+  const [showDebug, setShowDebug] = useState(false)
 
   useEffect(() => {
     if (bookingId) {
@@ -110,9 +111,14 @@ const Payment = () => {
               <div className="flex justify-between items-center">
                 <span className="text-lg font-semibold">Total Amount:</span>
                 <span className="text-2xl font-bold text-blue-600">
-                  ₹{booking.totalAmount?.toLocaleString() || 'N/A'}
+                  ₹{(booking.totalPrice || booking.totalAmount || booking.amount || 0).toLocaleString()}
                 </span>
               </div>
+              {booking.totalPrice < 50 && (
+                <div className="mt-2 text-sm text-yellow-600">
+                  *Minimum amount ₹50 will be charged for payment processing
+                </div>
+              )}
             </div>
           </div>
 
@@ -130,6 +136,33 @@ const Payment = () => {
               onClose={handleClose}
               onError={setPaymentError}
             />
+          </div>
+
+          {/* Debug Section */}
+          <div className="p-6 border-t bg-gray-50">
+            <button
+              onClick={() => setShowDebug(!showDebug)}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              {showDebug ? 'Hide' : 'Show'} Payment Debug Info
+            </button>
+            
+            {showDebug && (
+              <div className="mt-4 p-4 bg-white border rounded-md">
+                <h4 className="font-medium mb-2">Booking Debug Info</h4>
+                <div className="text-sm text-gray-600 space-y-1">
+                  <p><strong>Booking ID:</strong> {booking._id}</p>
+                  <p><strong>Total Price:</strong> ₹{booking.totalPrice || 'N/A'}</p>
+                  <p><strong>Total Amount:</strong> ₹{booking.totalAmount || 'N/A'}</p>
+                  <p><strong>Amount:</strong> ₹{booking.amount || 'N/A'}</p>
+                  <p><strong>Status:</strong> {booking.status}</p>
+                  <p><strong>Payment Status:</strong> {booking.paymentStatus || 'Not set'}</p>
+                  <p><strong>Product:</strong> {booking.productId?.name || 'N/A'}</p>
+                  <p><strong>Renter:</strong> {booking.renterClerkId}</p>
+                  <p><strong>Owner:</strong> {booking.ownerClerkId}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer */}

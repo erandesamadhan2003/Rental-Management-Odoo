@@ -586,12 +586,50 @@ const Notifications = () => {
       }
     };
 
-    const handlePayNow = () => {
-      // Navigate to payment page
+    const handlePayNow = async () => {
+      // Check payment status before navigating
       if (notification.metadata?.bookingId) {
-        navigate(`/payment?bookingId=${notification.metadata.bookingId}`);
+        try {
+          const response = await fetch(`http://localhost:5000/api/bookings/${notification.metadata.bookingId}`);
+          const data = await response.json();
+          
+          if (data.success && data.booking) {
+            if (data.booking.paymentStatus === 'paid' || data.booking.status === 'paid') {
+              alert('Payment has already been completed for this booking.');
+              return;
+            }
+          }
+          
+          navigate(`/payment?bookingId=${notification.metadata.bookingId}`);
+        } catch (error) {
+          console.error('Error checking payment status:', error);
+          // If there's an error checking status, still allow navigation
+          navigate(`/payment?bookingId=${notification.metadata.bookingId}`);
+        }
       }
     };
+
+    // Check if payment is already completed
+    const [paymentStatus, setPaymentStatus] = useState(null);
+    
+    useEffect(() => {
+      const checkPaymentStatus = async () => {
+        if (notification.metadata?.bookingId && (notification.type === 'rental_accepted' || notification.type === 'due_payment')) {
+          try {
+            const response = await fetch(`http://localhost:5000/api/bookings/${notification.metadata.bookingId}`);
+            const data = await response.json();
+            
+            if (data.success && data.booking) {
+              setPaymentStatus(data.booking.paymentStatus || data.booking.status);
+            }
+          } catch (error) {
+            console.error('Error checking payment status:', error);
+          }
+        }
+      };
+      
+      checkPaymentStatus();
+    }, [notification.metadata?.bookingId, notification.type]);
 
     // Add specific action buttons based on notification type
     switch (notification.type) {
@@ -615,7 +653,14 @@ const Notifications = () => {
           </>
         );
       case "rental_accepted":
-        return (
+        return paymentStatus === 'paid' ? (
+          <button
+            className="text-sm text-white font-medium bg-green-600 px-4 py-2.5 rounded-xl cursor-default"
+            disabled
+          >
+            ✓ Paid Already
+          </button>
+        ) : (
           <button
             onClick={handlePayNow}
             className="text-sm text-white font-medium bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 px-4 py-2.5 rounded-xl transition-all duration-200 transform"
@@ -624,12 +669,38 @@ const Notifications = () => {
           </button>
         );
       case "due_payment":
-        return (
+        return paymentStatus === 'paid' ? (
+          <button
+            className="text-sm text-white font-medium bg-green-600 px-4 py-2.5 rounded-xl cursor-default"
+            disabled
+          >
+            ✓ Paid Already
+          </button>
+        ) : (
           <button
             onClick={handlePayNow}
             className="text-sm text-white font-medium bg-orange-600 hover:bg-orange-700 hover:shadow-lg hover:scale-105 px-4 py-2.5 rounded-xl transition-all duration-200 transform"
           >
             Pay Now
+          </button>
+        );
+      case "payment_confirmation":
+        return (
+          <button
+            onClick={() => {
+              const bookingId = notification.metadata?.bookingId;
+              if (bookingId) {
+                window.open(`http://localhost:5000/api/invoices/booking/${bookingId}/pickup-document`, '_blank');
+              } else {
+                alert('Booking ID not found for pickup document');
+              }
+            }}
+            className="text-sm text-white font-medium bg-purple-600 hover:bg-purple-700 hover:shadow-lg hover:scale-105 px-4 py-2.5 rounded-xl transition-all duration-200 transform flex items-center space-x-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>Download Pickup Document</span>
           </button>
         );
       default:
