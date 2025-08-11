@@ -254,9 +254,7 @@ const Home = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-10 stagger-children">
               <div className="space-y-6">
-                <div className="inline-flex items-center px-4 py-2 bg-emerald-100 rounded-full text-emerald-700 text-sm font-medium hover-lift cursor-pointer stagger-item">
-                  ✨ Premium Equipment Rental Platform
-                </div>
+               
                 <h1 className="text-6xl md:text-7xl font-bold text-gray-900 leading-tight stagger-item">
                   Bringing Creative
                   <span className="block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent animate-gradient-x">
@@ -279,7 +277,7 @@ const Home = () => {
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
                   >
-                    <span>Watch Video</span>
+                    <span>Start Here</span>
                     <svg className="w-5 h-5 ml-2 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z"/>
                     </svg>
@@ -458,105 +456,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Popular Equipment Section */}
-      <section className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-16">
-            <div>
-              <div className="inline-flex items-center px-4 py-2 bg-emerald-100 rounded-full text-emerald-700 text-sm font-medium mb-4">
-                🔥 Most Popular
-              </div>
-              <h2 className="text-4xl md:text-5xl font-bold text-gray-900">
-                Featured Equipment
-              </h2>
-              <p className="text-xl text-gray-600 mt-4">
-                Top-rated equipment trusted by professionals
-              </p>
-            </div>
-            <Link
-              to="/products"
-              className="hidden md:inline-flex items-center px-6 py-3 border-2 border-emerald-500 text-emerald-600 rounded-lg hover:bg-emerald-500 hover:text-white transition-all duration-300 font-medium"
-            >
-              View All
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {popularEquipment.map((item, index) => (
-              <div
-                key={item.id}
-                className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden cursor-pointer hover-lift"
-                style={{ animationDelay: `${index * 150}ms` }}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
-              >
-                <div className="relative">
-                  <div className="aspect-w-16 aspect-h-12 bg-gradient-to-br from-gray-100 to-gray-200">
-                    <div className="flex items-center justify-center text-6xl">
-                      {item.category === 'Heavy Machinery' ? '🏗️' : '⚡'}
-                    </div>
-                  </div>
-                  <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-medium ${
-                    item.available 
-                      ? 'bg-green-100 text-green-600' 
-                      : 'bg-red-100 text-red-600'
-                  }`}>
-                    {item.available ? 'Available' : 'Booked'}
-                  </div>
-                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-gray-700">
-                    {item.category}
-                  </div>
-                </div>
-                
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-xl font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">
-                      {item.name}
-                    </h3>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-emerald-600">{item.price}</div>
-                      <div className="text-sm text-gray-500">{item.period}</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center mb-4">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 24 24">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                      </svg>
-                      <span className="ml-1 text-sm font-medium text-gray-700">{item.rating}</span>
-                    </div>
-                    <span className="mx-2 text-gray-300">•</span>
-                    <span className="text-sm text-gray-600">{item.reviews} reviews</span>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {item.features.map((feature, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md text-xs font-medium"
-                      >
-                        {feature}
-                      </span>
-                    ))}
-                  </div>
-                  
-                  <button
-                    className={`w-full py-3 rounded-lg font-medium transition-all duration-300 ${
-                      item.available
-                        ? 'bg-emerald-500 text-white hover:bg-emerald-600 hover:shadow-lg'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    }`}
-                    disabled={!item.available}
-                  >
-                    {item.available ? 'Book Now' : 'Currently Unavailable'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+     
 
       {/* How It Works Section */}
       <section className="py-24 bg-gradient-to-br from-emerald-50 to-teal-50">
@@ -798,98 +698,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* About Section */}
-      <section id="about" className="py-24 bg-gradient-to-br from-emerald-50 to-teal-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-            <div className="space-y-8">
-              <div>
-                <div className="inline-flex items-center px-4 py-2 bg-emerald-100 rounded-full text-emerald-700 text-sm font-medium mb-6">
-                  🏆 Trusted by Industry Leaders
-                </div>
-                <h2 className="text-5xl md:text-6xl font-bold text-gray-900 mb-8 leading-tight">
-                  Quality Equipment,
-                  <span className="block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                    Exceptional Service
-                  </span>
-                </h2>
-                <p className="text-xl text-gray-600 leading-relaxed mb-6">
-                  With over a decade of experience in equipment rental, we've built our reputation on reliability, 
-                  quality, and exceptional customer service.
-                </p>
-                <p className="text-lg text-gray-500 leading-relaxed">
-                  From small construction projects to large-scale industrial operations, we provide the equipment 
-                  and expertise you need to get the job done right.
-                </p>
-              </div>
-              
-              <div className="flex flex-col sm:flex-row gap-4">
-                <SignedOut>
-                  <Link
-                    to="/sign-up"
-                    className="inline-flex items-center px-8 py-4 bg-emerald-500 text-white rounded-full hover:bg-emerald-600 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl"
-                  >
-                    <span>Start Your Journey</span>
-                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                    </svg>
-                  </Link>
-                </SignedOut>
-                <button className="inline-flex items-center px-8 py-4 border-2 border-emerald-200 text-gray-700 rounded-full hover:bg-emerald-50 transition-all duration-300 font-semibold">
-                  Learn More
-                </button>
-              </div>
-            </div>
-            
-            <div className="relative">
-              <div className="relative bg-white rounded-3xl shadow-2xl p-8">
-                <div className="space-y-6">
-                  <div className="flex items-center space-x-4 p-4 bg-green-50 rounded-2xl">
-                    <div className="w-14 h-14 bg-green-500 rounded-2xl flex items-center justify-center">
-                      <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-gray-900 text-lg">Quality Assured</h4>
-                      <p className="text-gray-600">All equipment regularly maintained and certified</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4 p-4 bg-blue-50 rounded-2xl">
-                    <div className="w-14 h-14 bg-blue-500 rounded-2xl flex items-center justify-center">
-                      <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-gray-900 text-lg">24/7 Support</h4>
-                      <p className="text-gray-600">Round-the-clock customer assistance</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4 p-4 bg-emerald-50 rounded-2xl">
-                    <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center">
-                      <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-gray-900 text-lg">Fast Delivery</h4>
-                      <p className="text-gray-600">Same-day delivery for urgent requirements</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Floating decoration */}
-              <div className="absolute -top-4 -right-4 w-24 h-24 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-3xl opacity-20"></div>
-              <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-gradient-to-br from-teal-400 to-cyan-500 rounded-2xl opacity-30"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
+      
       {/* Testimonials Section */}
       <section id="testimonials" className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -961,7 +770,7 @@ const Home = () => {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="max-w-4xl mx-auto space-y-8">
             <div className="inline-flex items-center px-6 py-3 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm font-medium mb-4">
-              🚀 Ready to Get Started?
+               Ready to Get Started?
             </div>
             <h2 className="text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
               Transform Your Projects
