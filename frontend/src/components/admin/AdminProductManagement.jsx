@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../Navbar'
 
@@ -8,84 +8,62 @@ const AdminProductManagement = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const [products, setProducts] = useState([
-    {
-      id: 1,
-      name: 'Professional Camera Kit',
-      category: 'Photography',
-      sku: 'CAM-001',
-      rentalPrice: 85,
-      purchasePrice: 1200,
-      stock: 5,
-      status: 'available',
-      condition: 'excellent',
-      addedDate: '2024-01-15',
-      totalRentals: 45,
-      revenue: 3825,
-      image: '/api/placeholder/150/150'
-    },
-    {
-      id: 2,
-      name: 'Sound System Package',
-      category: 'Audio',
-      sku: 'SND-002',
-      rentalPrice: 120,
-      purchasePrice: 2500,
-      stock: 3,
-      status: 'available',
-      condition: 'good',
-      addedDate: '2024-02-01',
-      totalRentals: 28,
-      revenue: 3360,
-      image: '/api/placeholder/150/150'
-    },
-    {
-      id: 3,
-      name: 'Projector & Screen Set',
-      category: 'Presentation',
-      sku: 'PRJ-003',
-      rentalPrice: 95,
-      purchasePrice: 1800,
-      stock: 0,
-      status: 'out-of-stock',
-      condition: 'excellent',
-      addedDate: '2024-01-20',
-      totalRentals: 62,
-      revenue: 5890,
-      image: '/api/placeholder/150/150'
-    },
-    {
-      id: 4,
-      name: 'Lighting Equipment',
-      category: 'Lighting',
-      sku: 'LGT-004',
-      rentalPrice: 75,
-      purchasePrice: 900,
-      stock: 8,
-      status: 'available',
-      condition: 'good',
-      addedDate: '2024-02-10',
-      totalRentals: 33,
-      revenue: 2475,
-      image: '/api/placeholder/150/150'
-    },
-    {
-      id: 5,
-      name: 'Party Tent Large',
-      category: 'Events',
-      sku: 'TNT-005',
-      rentalPrice: 150,
-      purchasePrice: 3200,
-      stock: 2,
-      status: 'maintenance',
-      condition: 'fair',
-      addedDate: '2023-12-15',
-      totalRentals: 18,
-      revenue: 2700,
-      image: '/api/placeholder/150/150'
+  // Fetch products from backend
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true)
+        
+        // Get all products
+        const productsResponse = await fetch('http://localhost:3000/api/products')
+        const productsData = await productsResponse.json()
+        
+        // Get all orders to calculate product stats
+        const ordersResponse = await fetch('http://localhost:3000/api/bookings')
+        const ordersData = await ordersResponse.json()
+        
+        if (productsData.success && ordersData.success) {
+          const orders = ordersData.bookings || []
+          
+          // Calculate stats for each product
+          const productsWithStats = productsData.products.map(product => {
+            const productOrders = orders.filter(order => 
+              order.productId?._id === product._id || order.productId === product._id
+            )
+            const completedOrders = productOrders.filter(order => order.status === 'completed')
+            
+            return {
+              ...product,
+              id: product._id,
+              sku: product.sku || `PRD-${product._id.slice(-6).toUpperCase()}`,
+              stock: product.quantity || 0,
+              status: product.quantity > 0 ? 'available' : 'out-of-stock',
+              condition: product.condition || 'good',
+              addedDate: new Date(product.createdAt).toLocaleDateString(),
+              totalRentals: productOrders.length,
+              revenue: completedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
+              image: product.images?.[0]?.url || product.imageUrl || '/api/placeholder/150/150'
+            }
+          })
+          
+          setProducts(productsWithStats)
+        } else {
+          setError('Failed to fetch products')
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error)
+        setError('Failed to load products')
+      } finally {
+        setLoading(false)
+      }
     }
-  ])
+
+    fetchProducts()
+  }, [])
 
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -116,40 +94,124 @@ const AdminProductManagement = () => {
     }))
   }
 
-  const handleCreateProduct = () => {
-    const product = {
-      ...newProduct,
-      id: Date.now(),
-      rentalPrice: parseFloat(newProduct.rentalPrice),
-      purchasePrice: parseFloat(newProduct.purchasePrice),
-      stock: parseInt(newProduct.stock),
-      status: parseInt(newProduct.stock) > 0 ? 'available' : 'out-of-stock',
-      addedDate: new Date().toISOString().split('T')[0],
-      totalRentals: 0,
-      revenue: 0,
-      image: '/api/placeholder/150/150'
+  const handleCreateProduct = async () => {
+    try {
+      const response = await fetch('http://localhost:3000/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newProduct.name,
+          category: newProduct.category,
+          sku: newProduct.sku,
+          rentalPrice: parseFloat(newProduct.rentalPrice),
+          purchasePrice: parseFloat(newProduct.purchasePrice),
+          quantity: parseInt(newProduct.stock),
+          description: newProduct.description,
+          condition: newProduct.condition
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        // Refresh products list
+        const productsResponse = await fetch('http://localhost:3000/api/products')
+        const productsData = await productsResponse.json()
+        
+        if (productsData.success) {
+          const ordersResponse = await fetch('http://localhost:3000/api/bookings')
+          const ordersData = await ordersResponse.json()
+          const orders = ordersData.bookings || []
+          
+          const productsWithStats = productsData.products.map(product => {
+            const productOrders = orders.filter(order => 
+              order.productId?._id === product._id || order.productId === product._id
+            )
+            const completedOrders = productOrders.filter(order => order.status === 'completed')
+            
+            return {
+              ...product,
+              id: product._id,
+              sku: product.sku || `PRD-${product._id.slice(-6).toUpperCase()}`,
+              stock: product.quantity || 0,
+              status: product.quantity > 0 ? 'available' : 'out-of-stock',
+              condition: product.condition || 'good',
+              addedDate: new Date(product.createdAt).toLocaleDateString(),
+              totalRentals: productOrders.length,
+              revenue: completedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
+              image: product.images?.[0]?.url || product.imageUrl || '/api/placeholder/150/150'
+            }
+          })
+          
+          setProducts(productsWithStats)
+        }
+        
+        setNewProduct({
+          name: '', category: '', sku: '', rentalPrice: '', purchasePrice: '', 
+          stock: '', description: '', condition: 'excellent'
+        })
+        setActiveTab('all-products')
+        alert('Product created successfully!')
+      } else {
+        alert(data.message || 'Failed to create product')
+      }
+    } catch (error) {
+      console.error('Error creating product:', error)
+      alert('Failed to create product')
     }
-    
-    setProducts(prev => [...prev, product])
-    setNewProduct({
-      name: '', category: '', sku: '', rentalPrice: '', purchasePrice: '', 
-      stock: '', description: '', condition: 'excellent'
-    })
-    setActiveTab('all-products')
-    alert('Product created successfully!')
   }
 
-  const handleUpdateProductStatus = (productId, newStatus) => {
-    setProducts(prev => 
-      prev.map(product => 
-        product.id === productId ? { ...product, status: newStatus } : product
-      )
-    )
+  const handleUpdateProductStatus = async (productId, newStatus) => {
+    try {
+      const response = await fetch(`http://localhost:3000/api/products/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setProducts(prev => 
+          prev.map(product => 
+            product.id === productId ? { ...product, status: newStatus } : product
+          )
+        )
+        alert(`Product status updated to ${newStatus}`)
+      } else {
+        alert('Failed to update product status')
+      }
+    } catch (error) {
+      console.error('Error updating product status:', error)
+      alert('Failed to update product status')
+    }
   }
 
-  const handleDeleteProduct = (productId) => {
+  const handleDeleteProduct = async (productId) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
-      setProducts(prev => prev.filter(product => product.id !== productId))
+      try {
+        const response = await fetch(`http://localhost:3000/api/products/${productId}`, {
+          method: 'DELETE'
+        })
+
+        const data = await response.json()
+        
+        if (data.success) {
+          setProducts(prev => prev.filter(product => product.id !== productId))
+          alert('Product deleted successfully')
+        } else {
+          alert('Failed to delete product')
+        }
+      } catch (error) {
+        console.error('Error deleting product:', error)
+        alert('Failed to delete product')
+      }
     }
   }
 
@@ -642,6 +704,43 @@ const AdminProductManagement = () => {
       default:
         return renderAllProducts()
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-beige-50 via-purple-50 to-navy-50">
+        <Navbar />
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-600 border-t-transparent mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading products...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-beige-50 via-purple-50 to-navy-50">
+        <Navbar />
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="bg-red-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Products</h2>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

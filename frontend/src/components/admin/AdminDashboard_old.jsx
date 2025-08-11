@@ -1,19 +1,38 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+} from 'chart.js'
+import { Line, Bar, Doughnut, Pie } from 'react-chartjs-2'
 import Navbar from '../Navbar'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement
+)
 
 const AdminDashboard = () => {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [chartInstances, setChartInstances] = useState({})
-  
-  // Chart refs
-  const revenueChartRef = useRef(null)
-  const ordersChartRef = useRef(null)
-  const usersChartRef = useRef(null)
-  const productsChartRef = useRef(null)
+  const [refreshing, setRefreshing] = useState(false)
   
   // Dynamic state for admin data
   const [adminStats, setAdminStats] = useState({
@@ -24,405 +43,484 @@ const AdminDashboard = () => {
     pendingOrders: 0,
     activeRentals: 0,
     overduedReturns: 0,
-    lowStockItems: 0
+    lowStockItems: 0,
+    monthlyGrowth: 0,
+    revenueGrowth: 0
   })
 
   const [recentOrders, setRecentOrders] = useState([])
   const [systemAlerts, setSystemAlerts] = useState([])
   const [topProducts, setTopProducts] = useState([])
   const [adminInfo, setAdminInfo] = useState(null)
-
-  // Chart data states
   const [chartData, setChartData] = useState({
-    monthlyRevenue: [],
-    ordersByStatus: {},
-    userGrowth: [],
-    topCategories: []
+    revenue: [],
+    orders: [],
+    users: [],
+    categories: [],
+    monthly: []
   })
 
-  // Create charts using Chart.js
-  const createChart = (canvasRef, config) => {
-    if (!canvasRef.current || !window.Chart) return null
-    
-    const ctx = canvasRef.current.getContext('2d')
-    
-    // Destroy existing chart if it exists
-    if (chartInstances[canvasRef.current.id]) {
-      chartInstances[canvasRef.current.id].destroy()
-    }
-    
-    const chart = new window.Chart(ctx, config)
-    setChartInstances(prev => ({
-      ...prev,
-      [canvasRef.current.id]: chart
-    }))
-    
-    return chart
-  }
+  // Fetch admin dashboard data
+  const fetchAdminData = async () => {
+    try {
+      setRefreshing(true)
+      
+      // Get admin session info
+      const adminSession = localStorage.getItem('adminSession')
+      if (adminSession) {
+        setAdminInfo(JSON.parse(adminSession))
+      }
 
-  // Cleanup charts on unmount
-  useEffect(() => {
-    return () => {
-      Object.values(chartInstances).forEach(chart => {
-        if (chart && typeof chart.destroy === 'function') {
-          chart.destroy()
+      // Fetch dashboard statistics
+      const [usersRes, ordersRes, productsRes, notificationsRes] = await Promise.all([
+        fetch('http://localhost:3000/api/users'),
+        fetch('http://localhost:3000/api/bookings'),
+        fetch('http://localhost:3000/api/products'),
+        fetch('http://localhost:3000/api/notifications')
+      ])
+
+      const [users, orders, products, notifications] = await Promise.all([
+        usersRes.json(),
+        ordersRes.json(),
+        productsRes.json(),
+        notificationsRes.json()
+      ])
+
+      // Calculate statistics
+      const totalUsers = users.users?.length || 0
+      const totalOrders = orders.bookings?.length || 0
+      const totalProducts = products.products?.length || 0
+      
+      // Calculate revenue from completed orders
+      const completedOrders = orders.bookings?.filter(order => order.status === 'completed') || []
+      const totalRevenue = completedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0)
+      
+      // Calculate other metrics
+      const pendingOrders = orders.bookings?.filter(order => order.status === 'pending')?.length || 0
+      const activeRentals = orders.bookings?.filter(order => order.status === 'active')?.length || 0
+      const overduedReturns = orders.bookings?.filter(order => {
+        if (!order.returnDate) return false
+        return new Date(order.returnDate) < new Date() && order.status === 'active'
+      })?.length || 0
+
+      // Count low stock items (products with quantity < 5)
+      const lowStockItems = products.products?.filter(product => (product.quantity || 0) < 5)?.length || 0
+
+      // Calculate growth metrics
+      const currentMonth = new Date().getMonth()
+      const currentYear = new Date().getFullYear()
+      const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1
+      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear
+
+      const currentMonthOrders = orders.bookings?.filter(order => {
+        const orderDate = new Date(order.createdAt)
+        return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear
+      })?.length || 0
+
+      const lastMonthOrders = orders.bookings?.filter(order => {
+        const orderDate = new Date(order.createdAt)
+        return orderDate.getMonth() === lastMonth && orderDate.getFullYear() === lastMonthYear
+      })?.length || 0
+
+      const monthlyGrowth = lastMonthOrders > 0 ? ((currentMonthOrders - lastMonthOrders) / lastMonthOrders * 100) : 0
+
+      setAdminStats({
+        totalUsers,
+        totalOrders,
+        totalRevenue,
+        totalProducts,
+        pendingOrders,
+        activeRentals,
+        overduedReturns,
+        lowStockItems,
+        monthlyGrowth: Math.round(monthlyGrowth),
+        revenueGrowth: Math.round(monthlyGrowth * 1.2) // Approximate revenue growth
+      })
+
+      // Set recent orders (last 10 with proper formatting)
+      const sortedOrders = orders.bookings
+        ?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        ?.slice(0, 10)
+        ?.map(order => ({
+          id: order._id,
+          customer: order.renterClerkId ? `${order.renterClerkId.firstName || ''} ${order.renterClerkId.lastName || ''}`.trim() || 'Unknown Customer' : 'Unknown Customer',
+          product: order.productId?.name || 'Unknown Product',
+          amount: order.totalAmount || 0,
+          status: order.status,
+          date: new Date(order.createdAt).toLocaleDateString(),
+          startDate: order.startDate ? new Date(order.startDate).toLocaleDateString() : 'N/A',
+          endDate: order.endDate ? new Date(order.endDate).toLocaleDateString() : 'N/A'
+        })) || []
+
+      setRecentOrders(sortedOrders)
+
+      // Create system alerts based on data
+      const alerts = []
+      if (lowStockItems > 0) {
+        alerts.push({
+          id: 1,
+          type: 'warning',
+          title: 'Low Stock Alert',
+          message: `${lowStockItems} items are running low on stock`,
+          time: 'Now',
+          action: 'View Products'
+        })
+      }
+      if (overduedReturns > 0) {
+        alerts.push({
+          id: 2,
+          type: 'error',
+          title: 'Overdue Returns',
+          message: `${overduedReturns} rentals are overdue for return`,
+          time: 'Now',
+          action: 'Manage Orders'
+        })
+      }
+      if (pendingOrders > 0) {
+        alerts.push({
+          id: 3,
+          type: 'info',
+          title: 'Pending Orders',
+          message: `${pendingOrders} orders are awaiting approval`,
+          time: 'Now',
+          action: 'Review Orders'
+        })
+      }
+      
+      // Add new user registrations alert (users created today)
+      const today = new Date().toDateString()
+      const newUsersToday = users.users?.filter(user => 
+        new Date(user.createdAt).toDateString() === today
+      )?.length || 0
+      
+      if (newUsersToday > 0) {
+        alerts.push({
+          id: 4,
+          type: 'success',
+          title: 'New Registrations',
+          message: `${newUsersToday} new users registered today`,
+          time: 'Today',
+          action: 'View Users'
+        })
+      }
+
+      setSystemAlerts(alerts)
+
+      // Calculate top products by rental count
+      const productStats = {}
+      orders.bookings?.forEach(order => {
+        if (order.productId && order.status !== 'cancelled') {
+          const productId = order.productId._id || order.productId
+          const productName = order.productId.name || 'Unknown Product'
+          const amount = order.totalAmount || 0
+          
+          if (!productStats[productId]) {
+            productStats[productId] = {
+              name: productName,
+              rentals: 0,
+              revenue: 0,
+              category: order.productId.category || 'Other'
+            }
+          }
+          productStats[productId].rentals += 1
+          productStats[productId].revenue += amount
         }
       })
+
+      const topProductsList = Object.values(productStats)
+        .sort((a, b) => b.rentals - a.rentals)
+        .slice(0, 10)
+
+      setTopProducts(topProductsList)
+
+      // Prepare chart data
+      prepareChartData(orders.bookings || [], users.users || [], products.products || [])
+
+    } catch (error) {
+      console.error('Error fetching admin data:', error)
+      setError('Failed to load dashboard data')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
     }
-  }, [])
+  }
 
-  // Fetch admin dashboard data
-  useEffect(() => {
-    const fetchAdminData = async () => {
-      try {
-        setLoading(true)
-        
-        // Get admin session info
-        const adminSession = localStorage.getItem('adminSession')
-        if (adminSession) {
-          setAdminInfo(JSON.parse(adminSession))
-        }
+  // Prepare chart data for visualizations
+  const prepareChartData = (orders, users, products) => {
+    // Monthly revenue and orders for the last 6 months
+    const months = []
+    const revenues = []
+    const orderCounts = []
+    const userCounts = []
 
-        // Fetch dashboard statistics
-        const [usersRes, ordersRes, productsRes, notificationsRes] = await Promise.all([
-          fetch('http://localhost:3000/api/users'),
-          fetch('http://localhost:3000/api/bookings'),
-          fetch('http://localhost:3000/api/products'),
-          fetch('http://localhost:3000/api/notifications')
-        ])
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date()
+      date.setMonth(date.getMonth() - i)
+      const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' })
+      months.push(monthYear)
 
-        const [users, orders, products, notifications] = await Promise.all([
-          usersRes.json(),
-          ordersRes.json(),
-          productsRes.json(),
-          notificationsRes.json()
-        ])
-
-        // Calculate statistics
-        const totalUsers = users.users?.length || 0
-        const totalOrders = orders.bookings?.length || 0
-        const totalProducts = products.products?.length || 0
-        
-        // Calculate revenue from completed orders
-        const completedOrders = orders.bookings?.filter(order => order.status === 'completed') || []
-        const totalRevenue = completedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0)
-        
-        // Calculate other metrics
-        const pendingOrders = orders.bookings?.filter(order => order.status === 'pending')?.length || 0
-        const activeRentals = orders.bookings?.filter(order => order.status === 'active')?.length || 0
-        const overduedReturns = orders.bookings?.filter(order => {
-          if (!order.returnDate) return false
-          return new Date(order.returnDate) < new Date() && order.status === 'active'
-        })?.length || 0
-
-        // Count low stock items (products with quantity < 5)
-        const lowStockItems = products.products?.filter(product => (product.quantity || 0) < 5)?.length || 0
-
-        setAdminStats({
-          totalUsers,
-          totalOrders,
-          totalRevenue,
-          totalProducts,
-          pendingOrders,
-          activeRentals,
-          overduedReturns,
-          lowStockItems
+      // Revenue for this month
+      const monthRevenue = orders
+        .filter(order => {
+          const orderDate = new Date(order.createdAt)
+          return orderDate.getMonth() === date.getMonth() && 
+                 orderDate.getFullYear() === date.getFullYear() &&
+                 order.status === 'completed'
         })
+        .reduce((sum, order) => sum + (order.totalAmount || 0), 0)
+      
+      revenues.push(monthRevenue)
 
-        // Set recent orders (last 5)
-        const sortedOrders = orders.bookings?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) || []
-        setRecentOrders(sortedOrders.slice(0, 5))
+      // Orders for this month
+      const monthOrders = orders
+        .filter(order => {
+          const orderDate = new Date(order.createdAt)
+          return orderDate.getMonth() === date.getMonth() && 
+                 orderDate.getFullYear() === date.getFullYear()
+        }).length
 
-        // Create system alerts based on data
-        const alerts = []
-        if (lowStockItems > 0) {
-          alerts.push({
-            id: 1,
-            type: 'warning',
-            title: 'Low Stock Alert',
-            message: `${lowStockItems} items are running low on stock`,
-            time: 'Now'
-          })
-        }
-        if (overduedReturns > 0) {
-          alerts.push({
-            id: 2,
-            type: 'error',
-            title: 'Overdue Returns',
-            message: `${overduedReturns} rentals are overdue for return`,
-            time: 'Now'
-          })
-        }
-        if (pendingOrders > 0) {
-          alerts.push({
-            id: 3,
-            type: 'info',
-            title: 'Pending Orders',
-            message: `${pendingOrders} orders are pending approval`,
-            time: 'Now'
-          })
-        }
-        
-        // Add new user registrations alert (users created today)
-        const today = new Date().toDateString()
-        const newUsersToday = users.users?.filter(user => 
-          new Date(user.createdAt).toDateString() === today
-        )?.length || 0
-        
-        if (newUsersToday > 0) {
-          alerts.push({
-            id: 4,
-            type: 'success',
-            title: 'New Registrations',
-            message: `${newUsersToday} new users registered today`,
-            time: 'Today'
-          })
-        }
+      orderCounts.push(monthOrders)
 
-        setSystemAlerts(alerts)
+      // Users registered this month
+      const monthUsers = users
+        .filter(user => {
+          const userDate = new Date(user.createdAt)
+          return userDate.getMonth() === date.getMonth() && 
+                 userDate.getFullYear() === date.getFullYear()
+        }).length
 
-        // Calculate top products by rental count
-        const productStats = {}
-        orders.bookings?.forEach(order => {
-          if (order.productId && order.status !== 'cancelled') {
-            const productId = order.productId._id || order.productId
-            const productName = order.productId.name || 'Unknown Product'
-            const amount = order.totalAmount || 0
-            
-            if (!productStats[productId]) {
-              productStats[productId] = {
-                name: productName,
-                rentals: 0,
-                revenue: 0
-              }
-            }
-            productStats[productId].rentals += 1
-            productStats[productId].revenue += amount
-          }
-        })
+      userCounts.push(monthUsers)
+    }
 
-        const topProductsList = Object.values(productStats)
-          .sort((a, b) => b.rentals - a.rentals)
-          .slice(0, 5)
+    // Product categories distribution
+    const categoryStats = {}
+    products.forEach(product => {
+      const category = product.category || 'Other'
+      categoryStats[category] = (categoryStats[category] || 0) + 1
+    })
 
-        setTopProducts(topProductsList)
-
-        // Prepare chart data
-        await prepareChartData(orders.bookings || [], users.users || [], products.products || [])
-
-      } catch (error) {
-        console.error('Error fetching admin data:', error)
-        setError('Failed to load dashboard data')
-      } finally {
-        setLoading(false)
+    setChartData({
+      revenue: {
+        labels: months,
+        data: revenues
+      },
+      orders: {
+        labels: months,
+        data: orderCounts
+      },
+      users: {
+        labels: months,
+        data: userCounts
+      },
+      categories: {
+        labels: Object.keys(categoryStats),
+        data: Object.values(categoryStats)
+      },
+      monthly: {
+        labels: months,
+        revenue: revenues,
+        orders: orderCounts,
+        users: userCounts
       }
-    }
+    })
+  }
 
+  useEffect(() => {
     fetchAdminData()
   }, [])
 
-  // Prepare data for charts
-  const prepareChartData = async (orders, users, products) => {
-    // Monthly revenue data (last 6 months)
-    const monthlyRevenue = []
-    const months = []
-    const now = new Date()
-    
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const monthStr = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-      months.push(monthStr)
-      
-      const monthlyOrders = orders.filter(order => {
-        const orderDate = new Date(order.createdAt)
-        return orderDate.getMonth() === date.getMonth() && 
-               orderDate.getFullYear() === date.getFullYear() &&
-               order.status === 'completed'
-      })
-      
-      const revenue = monthlyOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0)
-      monthlyRevenue.push(revenue)
-    }
+  // Auto-refresh every 5 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAdminData()
+    }, 300000) // 5 minutes
 
-    // Orders by status
-    const ordersByStatus = orders.reduce((acc, order) => {
-      acc[order.status] = (acc[order.status] || 0) + 1
-      return acc
-    }, {})
-
-    // User growth data (last 6 months)
-    const userGrowth = []
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-      
-      const monthlyUsers = users.filter(user => {
-        const userDate = new Date(user.createdAt)
-        return userDate >= date && userDate < nextMonth
-      })
-      
-      userGrowth.push(monthlyUsers.length)
-    }
-
-    // Top product categories
-    const categoryStats = {}
-    orders.forEach(order => {
-      if (order.productId && order.productId.category) {
-        const category = order.productId.category
-        categoryStats[category] = (categoryStats[category] || 0) + 1
-      }
-    })
-
-    const topCategories = Object.entries(categoryStats)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 5)
-
-    setChartData({
-      monthlyRevenue: { labels: months, data: monthlyRevenue },
-      ordersByStatus,
-      userGrowth: { labels: months, data: userGrowth },
-      topCategories
-    })
-
-    // Create charts after data is ready
-    setTimeout(createCharts, 100)
-  }
-
-  // Create all charts
-  const createCharts = () => {
-    // Revenue Chart
-    createChart(revenueChartRef, {
-      type: 'line',
-      data: {
-        labels: chartData.monthlyRevenue.labels,
-        datasets: [{
-          label: 'Monthly Revenue (₹)',
-          data: chartData.monthlyRevenue.data,
-          borderColor: '#10b981',
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-          borderWidth: 3,
-          fill: true,
-          tension: 0.4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              callback: function(value) {
-                return '₹' + value.toLocaleString()
-              }
-            }
-          }
-        }
-      }
-    })
-
-    // Orders Status Chart
-    const statusData = Object.values(chartData.ordersByStatus)
-    const statusLabels = Object.keys(chartData.ordersByStatus)
-    
-    createChart(ordersChartRef, {
-      type: 'doughnut',
-      data: {
-        labels: statusLabels,
-        datasets: [{
-          data: statusData,
-          backgroundColor: [
-            '#3b82f6', // blue for active
-            '#f59e0b', // yellow for pending
-            '#10b981', // green for completed
-            '#ef4444', // red for cancelled
-            '#8b5cf6'  // purple for others
-          ],
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom'
-          }
-        }
-      }
-    })
-
-    // User Growth Chart
-    createChart(usersChartRef, {
-      type: 'bar',
-      data: {
-        labels: chartData.userGrowth.labels,
-        datasets: [{
-          label: 'New Users',
-          data: chartData.userGrowth.data,
-          backgroundColor: 'rgba(59, 130, 246, 0.8)',
-          borderColor: '#3b82f6',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              stepSize: 1
-            }
-          }
-        }
-      }
-    })
-
-    // Top Categories Chart
-    if (chartData.topCategories.length > 0) {
-      createChart(productsChartRef, {
-        type: 'bar',
-        data: {
-          labels: chartData.topCategories.map(([category]) => category),
-          datasets: [{
-            label: 'Orders',
-            data: chartData.topCategories.map(([, count]) => count),
-            backgroundColor: [
-              '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#3b82f6'
-            ],
-            borderWidth: 0
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                stepSize: 1
-              }
-            }
-          }
-        }
-      })
-    }
-  }
+    return () => clearInterval(interval)
+  }, [])
 
   // Logout function
   const handleLogout = () => {
     localStorage.removeItem('adminSession')
     navigate('/admin-login')
+  }
+
+  // Refresh data
+  const handleRefresh = () => {
+    fetchAdminData()
+  }
+
+  // Chart configurations
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: true,
+        font: {
+          size: 16,
+          weight: 'bold'
+        }
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)',
+        },
+      },
+      x: {
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)',
+        },
+      },
+    },
+  }
+
+  // Revenue Chart Data
+  const revenueChartData = {
+    labels: chartData.revenue?.labels || [],
+    datasets: [
+      {
+        label: 'Monthly Revenue (₹)',
+        data: chartData.revenue?.data || [],
+        borderColor: 'rgb(239, 68, 68)',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+      },
+    ],
+  }
+
+  // Orders Chart Data
+  const ordersChartData = {
+    labels: chartData.orders?.labels || [],
+    datasets: [
+      {
+        label: 'Monthly Orders',
+        data: chartData.orders?.data || [],
+        backgroundColor: 'rgba(239, 68, 68, 0.8)',
+        borderColor: 'rgb(239, 68, 68)',
+        borderWidth: 1,
+      },
+    ],
+  }
+
+  // Users Growth Chart Data
+  const usersChartData = {
+    labels: chartData.users?.labels || [],
+    datasets: [
+      {
+        label: 'New Users',
+        data: chartData.users?.data || [],
+        borderColor: 'rgb(220, 38, 38)',
+        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+      },
+    ],
+  }
+
+  // Categories Distribution Chart Data
+  const categoriesChartData = {
+    labels: chartData.categories?.labels || [],
+    datasets: [
+      {
+        label: 'Products by Category',
+        data: chartData.categories?.data || [],
+        backgroundColor: [
+          'rgba(239, 68, 68, 0.8)',
+          'rgba(220, 38, 38, 0.8)',
+          'rgba(185, 28, 28, 0.8)',
+          'rgba(153, 27, 27, 0.8)',
+          'rgba(127, 29, 29, 0.8)',
+          'rgba(255, 99, 132, 0.8)',
+          'rgba(255, 159, 64, 0.8)',
+        ],
+        borderColor: [
+          'rgb(239, 68, 68)',
+          'rgb(220, 38, 38)',
+          'rgb(185, 28, 28)',
+          'rgb(153, 27, 27)',
+          'rgb(127, 29, 29)',
+          'rgb(255, 99, 132)',
+          'rgb(255, 159, 64)',
+        ],
+        borderWidth: 2,
+      },
+    ],
+  }
+
+  // Combined Performance Chart Data
+  const performanceChartData = {
+    labels: chartData.monthly?.labels || [],
+    datasets: [
+      {
+        label: 'Revenue (₹)',
+        data: chartData.monthly?.revenue || [],
+        borderColor: 'rgb(239, 68, 68)',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        yAxisID: 'y',
+        type: 'line',
+        tension: 0.4,
+      },
+      {
+        label: 'Orders',
+        data: chartData.monthly?.orders || [],
+        backgroundColor: 'rgba(220, 38, 38, 0.7)',
+        yAxisID: 'y1',
+      },
+    ],
+  }
+
+  const performanceChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    scales: {
+      y: {
+        type: 'linear',
+        display: true,
+        position: 'left',
+        title: {
+          display: true,
+          text: 'Revenue (₹)',
+        },
+      },
+      y1: {
+        type: 'linear',
+        display: true,
+        position: 'right',
+        title: {
+          display: true,
+          text: 'Orders Count',
+        },
+        grid: {
+          drawOnChartArea: false,
+        },
+      },
+    },
+    plugins: {
+      title: {
+        display: true,
+        text: 'Business Performance Overview',
+        font: {
+          size: 16,
+          weight: 'bold'
+        }
+      },
+      legend: {
+        position: 'top',
+      },
+    },
   }
 
   if (loading) {

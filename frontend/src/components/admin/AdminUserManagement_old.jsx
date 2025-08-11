@@ -8,50 +8,90 @@ const AdminUserManagement = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRole, setSelectedRole] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
-  const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  // Fetch users from backend
+  const [users, setUsers] = useState([])
+  const [userStats, setUserStats] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    customers: 0,
+    admins: 0,
+    newThisMonth: 0
+  })
+
+  // Fetch users data from backend
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         setLoading(true)
-        
-        // Get all users
-        const usersResponse = await fetch('http://localhost:3000/api/users')
-        const usersData = await usersResponse.json()
-        
-        // Get all orders to calculate user stats
-        const ordersResponse = await fetch('http://localhost:3000/api/bookings')
-        const ordersData = await ordersResponse.json()
-        
-        if (usersData.success && ordersData.success) {
-          const orders = ordersData.bookings || []
+        const [usersRes, ordersRes] = await Promise.all([
+          fetch('http://localhost:3000/api/users'),
+          fetch('http://localhost:3000/api/bookings')
+        ])
+
+        const [usersData, ordersData] = await Promise.all([
+          usersRes.json(),
+          ordersRes.json()
+        ])
+
+        const usersList = usersData.users || []
+        const ordersList = ordersData.bookings || []
+
+        // Calculate user statistics with orders
+        const processedUsers = usersList.map(user => {
+          const userOrders = ordersList.filter(order => 
+            order.renterClerkId && order.renterClerkId._id === user._id
+          )
           
-          // Calculate stats for each user
-          const usersWithStats = usersData.users.map(user => {
-            const userOrders = orders.filter(order => order.userId?._id === user._id || order.userId === user._id)
-            const completedOrders = userOrders.filter(order => order.status === 'completed')
-            
-            return {
-              ...user,
-              id: user._id,
-              totalOrders: userOrders.length,
-              totalSpent: completedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
-              joinDate: new Date(user.createdAt).toLocaleDateString(),
-              lastLogin: user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never',
-              status: user.isActive !== false ? 'active' : 'inactive'
-            }
-          })
-          
-          setUsers(usersWithStats)
-        } else {
-          setError('Failed to fetch users')
+          const totalOrders = userOrders.length
+          const totalSpent = userOrders
+            .filter(order => order.status === 'completed')
+            .reduce((sum, order) => sum + (order.totalAmount || 0), 0)
+
+          const lastOrder = userOrders
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
+
+          return {
+            id: user._id,
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown User',
+            email: user.email || 'N/A',
+            phone: user.phone || 'N/A',
+            role: user.role || 'customer',
+            status: user.isActive !== false ? 'active' : 'inactive',
+            joinDate: new Date(user.createdAt).toLocaleDateString(),
+            lastLogin: user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never',
+            totalOrders,
+            totalSpent,
+            lastOrderDate: lastOrder ? new Date(lastOrder.createdAt).toLocaleDateString() : 'No orders',
+            clerkId: user.clerkId || 'N/A'
+          }
+        })
+
+        setUsers(processedUsers)
+
+        // Calculate statistics
+        const currentMonth = new Date().getMonth()
+        const currentYear = new Date().getFullYear()
+        
+        const stats = {
+          total: processedUsers.length,
+          active: processedUsers.filter(u => u.status === 'active').length,
+          inactive: processedUsers.filter(u => u.status === 'inactive').length,
+          customers: processedUsers.filter(u => u.role === 'customer').length,
+          admins: processedUsers.filter(u => u.role === 'admin').length,
+          newThisMonth: usersList.filter(user => {
+            const userDate = new Date(user.createdAt)
+            return userDate.getMonth() === currentMonth && userDate.getFullYear() === currentYear
+          }).length
         }
+
+        setUserStats(stats)
+
       } catch (error) {
         console.error('Error fetching users:', error)
-        setError('Failed to load users')
+        setError('Failed to load user data')
       } finally {
         setLoading(false)
       }
@@ -85,120 +125,41 @@ const AdminUserManagement = () => {
     }))
   }
 
-  const handleCreateUser = async () => {
+  const handleCreateUser = () => {
     if (newUser.password !== newUser.confirmPassword) {
       alert('Passwords do not match!')
       return
     }
     
-    try {
-      const response = await fetch('http://localhost:3000/api/users/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: newUser.name,
-          email: newUser.email,
-          phone: newUser.phone,
-          password: newUser.password,
-          role: newUser.role
-        })
-      })
-
-      const data = await response.json()
-      
-      if (data.success) {
-        // Refresh users list
-        const usersResponse = await fetch('http://localhost:3000/api/users')
-        const usersData = await usersResponse.json()
-        
-        if (usersData.success) {
-          const ordersResponse = await fetch('http://localhost:3000/api/bookings')
-          const ordersData = await ordersResponse.json()
-          const orders = ordersData.bookings || []
-          
-          const usersWithStats = usersData.users.map(user => {
-            const userOrders = orders.filter(order => order.userId?._id === user._id || order.userId === user._id)
-            const completedOrders = userOrders.filter(order => order.status === 'completed')
-            
-            return {
-              ...user,
-              id: user._id,
-              totalOrders: userOrders.length,
-              totalSpent: completedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
-              joinDate: new Date(user.createdAt).toLocaleDateString(),
-              lastLogin: user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never',
-              status: user.isActive !== false ? 'active' : 'inactive'
-            }
-          })
-          
-          setUsers(usersWithStats)
-        }
-        
-        setNewUser({
-          name: '', email: '', phone: '', role: 'customer', password: '', confirmPassword: ''
-        })
-        setActiveTab('all-users')
-        alert('User created successfully!')
-      } else {
-        alert(data.message || 'Failed to create user')
-      }
-    } catch (error) {
-      console.error('Error creating user:', error)
-      alert('Failed to create user')
+    const user = {
+      ...newUser,
+      id: Date.now(),
+      status: 'active',
+      joinDate: new Date().toISOString().split('T')[0],
+      lastLogin: 'Never',
+      totalOrders: 0,
+      totalSpent: 0
     }
+    
+    setUsers(prev => [...prev, user])
+    setNewUser({
+      name: '', email: '', phone: '', role: 'customer', password: '', confirmPassword: ''
+    })
+    setActiveTab('all-users')
+    alert('User created successfully!')
   }
 
-  const handleUpdateUserStatus = async (userId, newStatus) => {
-    try {
-      const response = await fetch(`http://localhost:3000/api/users/${userId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          isActive: newStatus === 'active'
-        })
-      })
-
-      const data = await response.json()
-      
-      if (data.success) {
-        setUsers(prev => 
-          prev.map(user => 
-            user.id === userId ? { ...user, status: newStatus } : user
-          )
-        )
-        alert(`User status updated to ${newStatus}`)
-      } else {
-        alert('Failed to update user status')
-      }
-    } catch (error) {
-      console.error('Error updating user status:', error)
-      alert('Failed to update user status')
-    }
+  const handleUpdateUserStatus = (userId, newStatus) => {
+    setUsers(prev => 
+      prev.map(user => 
+        user.id === userId ? { ...user, status: newStatus } : user
+      )
+    )
   }
 
-  const handleDeleteUser = async (userId) => {
+  const handleDeleteUser = (userId) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
-      try {
-        const response = await fetch(`http://localhost:3000/api/users/${userId}`, {
-          method: 'DELETE'
-        })
-
-        const data = await response.json()
-        
-        if (data.success) {
-          setUsers(prev => prev.filter(user => user.id !== userId))
-          alert('User deleted successfully')
-        } else {
-          alert('Failed to delete user')
-        }
-      } catch (error) {
-        console.error('Error deleting user:', error)
-        alert('Failed to delete user')
-      }
+      setUsers(prev => prev.filter(user => user.id !== userId))
     }
   }
 
@@ -543,63 +504,122 @@ const AdminUserManagement = () => {
 
   const renderUserAnalytics = () => (
     <div className="space-y-6">
-      <h3 className="text-xl font-semibold text-midnight-800">User Analytics</h3>
+      <h3 className="text-xl font-semibold text-midnight-800">User Analytics & Statistics</h3>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg border border-purple-200 p-6">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-              <span className="text-2xl">👥</span>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="bg-white rounded-lg border border-purple-200 p-6 animate-pulse">
+              <div className="flex items-center">
+                <div className="w-12 h-12 bg-gray-200 rounded-lg mr-4"></div>
+                <div>
+                  <div className="h-6 bg-gray-200 rounded w-16 mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-20"></div>
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="text-2xl font-bold text-midnight-800">{users.length}</div>
-              <div className="text-sm text-navy-600">Total Users</div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+          <div className="bg-white rounded-lg border border-purple-200 p-6">
+            <div className="flex items-center">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                <span className="text-2xl">👥</span>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-midnight-800">{userStats.total}</div>
+                <div className="text-sm text-navy-600">Total Users</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg border border-purple-200 p-6">
+            <div className="flex items-center">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
+                <span className="text-2xl">✅</span>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-midnight-800">{userStats.active}</div>
+                <div className="text-sm text-navy-600">Active Users</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg border border-purple-200 p-6">
+            <div className="flex items-center">
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                <span className="text-2xl">🛒</span>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-midnight-800">{userStats.customers}</div>
+                <div className="text-sm text-navy-600">Customers</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg border border-purple-200 p-6">
+            <div className="flex items-center">
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mr-4">
+                <span className="text-2xl">🔑</span>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-midnight-800">{userStats.admins}</div>
+                <div className="text-sm text-navy-600">Admins</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg border border-purple-200 p-6">
+            <div className="flex items-center">
+              <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mr-4">
+                <span className="text-2xl">🆕</span>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-midnight-800">{userStats.newThisMonth}</div>
+                <div className="text-sm text-navy-600">New This Month</div>
+              </div>
             </div>
           </div>
         </div>
-        
+      )}
+    </div>
+  )
+
+  const renderAllUsers = () => {
+    if (loading) {
+      return (
         <div className="bg-white rounded-lg border border-purple-200 p-6">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-              <span className="text-2xl">✅</span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-midnight-800">{users.filter(u => u.status === 'active').length}</div>
-              <div className="text-sm text-navy-600">Active Users</div>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-red-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading users...</p>
             </div>
           </div>
         </div>
-        
+      )
+    }
+
+    if (error) {
+      return (
         <div className="bg-white rounded-lg border border-purple-200 p-6">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
-              <span className="text-2xl">🛒</span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-midnight-800">{users.filter(u => u.role === 'customer').length}</div>
-              <div className="text-sm text-navy-600">Customers</div>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="text-red-600 text-xl mb-4">⚠️ Error</div>
+              <p className="text-gray-600 mb-4">{error}</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Retry
+              </button>
             </div>
           </div>
         </div>
-        
-        <div className="bg-white rounded-lg border border-purple-200 p-6">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mr-4">
-              <span className="text-2xl">⚠️</span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-midnight-800">{users.filter(u => u.status === 'suspended').length}</div>
-              <div className="text-sm text-navy-600">Suspended</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg border border-purple-200 p-6 h-64 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">📈</span>
+      )
+    }
+
+    return (
             </div>
             <h4 className="font-semibold text-midnight-800 mb-2">User Growth Chart</h4>
             <p className="text-sm text-navy-600">User registration trends over time</p>
@@ -632,43 +652,6 @@ const AdminUserManagement = () => {
       default:
         return renderAllUsers()
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-beige-50 via-purple-50 to-navy-50">
-        <Navbar />
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-600 border-t-transparent mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading users...</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-beige-50 via-purple-50 to-navy-50">
-        <Navbar />
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <div className="bg-red-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <span className="text-2xl">⚠️</span>
-            </div>
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Users</h2>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
