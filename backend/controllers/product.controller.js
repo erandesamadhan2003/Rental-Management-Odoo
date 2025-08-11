@@ -1,5 +1,6 @@
 import Product from "../models/product.model.js";
 import User from "../models/user.js";
+import NotificationService from "../services/notification.service.js";
 
 const handleError = (res, error, message = "An error occurred", status = 500) => {
   console.error(error);
@@ -27,8 +28,33 @@ export const createProduct = async (req, res) => {
       availability 
     } = req.body;
 
-    const owner = await User.findOne({ clerkId });
-    if (!owner) return res.status(404).json({ success: false, message: "Owner not found" });
+    // Validate required fields
+    if (!clerkId) {
+      return res.status(400).json({ success: false, message: "Clerk ID is required" });
+    }
+
+    if (!title || !description || !category || !location) {
+      return res.status(400).json({ success: false, message: "Title, description, category, and location are required" });
+    }
+
+    // Find or create user
+    let owner = await User.findOne({ clerkId });
+    if (!owner) {
+      // Try to create a basic user record if not found
+      try {
+        owner = await User.create({
+          clerkId,
+          email: `${clerkId}@temp.com`, // Temporary email
+          username: `user_${clerkId.slice(-8)}`, // Temporary username
+          firstName: '',
+          lastName: ''
+        });
+        console.log('Created new user for product creation:', owner._id);
+      } catch (userError) {
+        console.error('Failed to create user:', userError);
+        return res.status(404).json({ success: false, message: "Owner not found and could not be created" });
+      }
+    }
 
     const product = await Product.create({
       ownerId: owner._id,
@@ -36,22 +62,40 @@ export const createProduct = async (req, res) => {
       title,
       description,
       category,
-      brand,
+      brand: brand || '',
       tags: Array.isArray(tags) ? tags : (typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(Boolean) : []),
-      targetAudience,
-      pricePerHour,
-      pricePerDay,
-      pricePerWeek,
+      targetAudience: targetAudience || 'All Ages',
+      pricePerHour: pricePerHour || 0,
+      pricePerDay: pricePerDay || 0,
+      pricePerWeek: pricePerWeek || 0,
       location,
-      pickupLocation,
-      dropLocation,
-      images,
-      availability,
+      pickupLocation: pickupLocation || location,
+      dropLocation: dropLocation || location,
+      images: images || [],
+      availability: availability || [],
       status: 'approved'
     });
 
+    // Create notification for successful product listing
+    try {
+      await NotificationService.createSystemNotification({
+        userClerkId: clerkId,
+        message: `Your product "${title}" has been successfully listed and is now available for rent!`,
+        metadata: {
+          productId: product._id,
+          productTitle: title,
+          category,
+          action: 'product_listed'
+        }
+      })
+    } catch (notificationError) {
+      console.error('Failed to create product listing notification:', notificationError)
+      // Don't fail the product creation if notification fails
+    }
+
     res.status(201).json({ success: true, message: "Product created", product });
   } catch (error) {
+    console.error('Product creation error:', error);
     handleError(res, error, "Failed to create product");
   }
 };

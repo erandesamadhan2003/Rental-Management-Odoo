@@ -109,6 +109,34 @@ export const getUserBookings = createAsyncThunk(
   }
 )
 
+export const acceptRentalRequest = createAsyncThunk(
+  'bookings/acceptRentalRequest',
+  async (bookingId, { rejectWithValue }) => {
+    try {
+      const data = await makeApiCall(`/bookings/${bookingId}/accept`, {
+        method: 'POST',
+      })
+      return data.booking || data
+    } catch (error) {
+      return rejectWithValue(error.message)
+    }
+  }
+)
+
+export const rejectRentalRequest = createAsyncThunk(
+  'bookings/rejectRentalRequest',
+  async (bookingId, { rejectWithValue }) => {
+    try {
+      const data = await makeApiCall(`/bookings/${bookingId}/reject`, {
+        method: 'POST',
+      })
+      return data.booking || data
+    } catch (error) {
+      return rejectWithValue(error.message)
+    }
+  }
+)
+
 // Initial state
 const initialState = {
   bookings: [],
@@ -248,6 +276,56 @@ const bookingSlice = createSlice({
         state.error = null
       })
       .addCase(getUserBookings.rejected, (state, action) => {
+        state.isLoading = false
+        state.error = action.payload
+      })
+
+      // Accept Rental Request
+      .addCase(acceptRentalRequest.pending, (state) => {
+        state.isLoading = true
+        state.error = null
+      })
+      .addCase(acceptRentalRequest.fulfilled, (state, action) => {
+        state.isLoading = false
+        const index = state.bookings.findIndex(b => b._id === action.payload._id)
+        if (index !== -1) {
+          state.bookings[index] = action.payload
+        }
+        const userIndex = state.userBookings.findIndex(b => b._id === action.payload._id)
+        if (userIndex !== -1) {
+          state.userBookings[userIndex] = action.payload
+        }
+        if (state.selectedBooking && state.selectedBooking._id === action.payload._id) {
+          state.selectedBooking = action.payload
+        }
+        state.error = null
+      })
+      .addCase(acceptRentalRequest.rejected, (state, action) => {
+        state.isLoading = false
+        state.error = action.payload
+      })
+
+      // Reject Rental Request
+      .addCase(rejectRentalRequest.pending, (state) => {
+        state.isLoading = true
+        state.error = null
+      })
+      .addCase(rejectRentalRequest.fulfilled, (state, action) => {
+        state.isLoading = false
+        const index = state.bookings.findIndex(b => b._id === action.payload._id)
+        if (index !== -1) {
+          state.bookings[index] = action.payload
+        }
+        const userIndex = state.userBookings.findIndex(b => b._id === action.payload._id)
+        if (userIndex !== -1) {
+          state.userBookings[userIndex] = action.payload
+        }
+        if (state.selectedBooking && state.selectedBooking._id === action.payload._id) {
+          state.selectedBooking = action.payload
+        }
+        state.error = null
+      })
+      .addCase(rejectRentalRequest.rejected, (state, action) => {
         state.isLoading = false
         state.error = action.payload
       })

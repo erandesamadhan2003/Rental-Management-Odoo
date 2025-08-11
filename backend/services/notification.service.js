@@ -7,7 +7,7 @@ class NotificationService {
   // Create a rental request notification
   static async createRentalRequestNotification(bookingData) {
     try {
-      const { renterId, ownerId, productId, productTitle, startDate, endDate, totalAmount } = bookingData
+      const { renterId, ownerId, productId, productTitle, startDate, endDate, totalAmount, bookingId } = bookingData
       
       // Get user details
       const renter = await User.findOne({ clerkId: renterId })
@@ -19,17 +19,20 @@ class NotificationService {
         userId: owner._id,
         userClerkId: ownerId,
         type: 'rental_request',
-        message: `${renter?.name || 'A user'} has requested to rent your product "${productTitle}"`,
-        relatedId: productId,
+        message: `${renter?.firstName || 'A user'} has requested to rent your product "${productTitle}"`,
+        relatedId: bookingId,
         relatedType: 'booking',
         metadata: {
           productTitle,
-          renterName: renter?.name || 'Unknown',
+          renterName: renter?.firstName || 'Unknown',
           renterId,
           startDate,
           endDate,
           totalAmount,
-          duration: `${startDate} to ${endDate}`
+          bookingId,
+          duration: `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`,
+          actionRequired: true,
+          actions: ['accept', 'reject']
         }
       })
       
@@ -49,14 +52,14 @@ class NotificationService {
         userId,
         userClerkId,
         type: 'payment_confirmation',
-        message: `Payment of $${amount} confirmed for "${productTitle}"`,
+        message: `Payment of ₹${amount} received for "${productTitle}"`,
         relatedId: bookingId,
         relatedType: 'payment',
         metadata: {
           amount,
           method,
           productTitle,
-          paymentDate: new Date()
+          bookingId
         }
       })
       
@@ -64,6 +67,75 @@ class NotificationService {
       return notification
     } catch (error) {
       console.error('Error creating payment confirmation notification:', error)
+    }
+  }
+
+  // Create rental acceptance notification
+  static async createRentalAcceptanceNotification(bookingData) {
+    try {
+      const { renterId, ownerId, productTitle, bookingId, totalAmount } = bookingData
+      
+      // Get user details
+      const renter = await User.findOne({ clerkId: renterId })
+      const owner = await User.findOne({ clerkId: ownerId })
+      
+      if (!renter) return
+      
+      const notification = new Notification({
+        userId: renter._id,
+        userClerkId: renterId,
+        type: 'rental_accepted',
+        message: `Great news! Your rental request for "${productTitle}" has been accepted. Please complete the payment.`,
+        relatedId: bookingId,
+        relatedType: 'booking',
+        metadata: {
+          productTitle,
+          ownerName: owner?.firstName || 'Owner',
+          ownerId,
+          totalAmount,
+          bookingId,
+          actionRequired: true,
+          actions: ['pay_now']
+        }
+      })
+      
+      await notification.save()
+      return notification
+    } catch (error) {
+      console.error('Error creating rental acceptance notification:', error)
+    }
+  }
+
+  // Create rental rejection notification
+  static async createRentalRejectionNotification(bookingData) {
+    try {
+      const { renterId, ownerId, productTitle, bookingId } = bookingData
+      
+      // Get user details
+      const renter = await User.findOne({ clerkId: renterId })
+      const owner = await User.findOne({ clerkId: ownerId })
+      
+      if (!renter) return
+      
+      const notification = new Notification({
+        userId: renter._id,
+        userClerkId: renterId,
+        type: 'rental_rejected',
+        message: `Sorry, your rental request for "${productTitle}" has been declined.`,
+        relatedId: bookingId,
+        relatedType: 'booking',
+        metadata: {
+          productTitle,
+          ownerName: owner?.firstName || 'Owner',
+          ownerId,
+          bookingId
+        }
+      })
+      
+      await notification.save()
+      return notification
+    } catch (error) {
+      console.error('Error creating rental rejection notification:', error)
     }
   }
   

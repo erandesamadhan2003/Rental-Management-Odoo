@@ -1,12 +1,29 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { UserButton, useUser } from '@clerk/clerk-react'
+import { useNotifications } from '../hooks/useRedux'
+import { getUnreadCount } from '../app/features/notificationSlice'
 
 const Navbar = () => {
   const { user } = useUser()
   const location = useLocation()
   const navigate = useNavigate()
   const [hoveredItem, setHoveredItem] = useState(null)
+  const { unreadCount, dispatch } = useNotifications()
+
+  // Load unread count on component mount
+  useEffect(() => {
+    if (user?.id) {
+      dispatch(getUnreadCount(user.id))
+      
+      // Update unread count every 30 seconds
+      const interval = setInterval(() => {
+        dispatch(getUnreadCount(user.id))
+      }, 30000)
+
+      return () => clearInterval(interval)
+    }
+  }, [user?.id, dispatch])
 
   const handleMouseEnter = (e) => {
     const element = e.currentTarget
@@ -98,13 +115,15 @@ const Navbar = () => {
             <div className="hidden md:flex space-x-2">
               {navigation.map((item) => {
                 const isActive = isActivePage(item.href)
+                const isNotifications = item.icon === 'notifications'
+                
                 return (
                   <Link
                     key={item.name}
                     to={item.href}
                     title={item.name}
                     aria-label={item.name}
-                    className={`flex items-center justify-center w-10 h-10 rounded-lg text-sm font-medium transition-all duration-300 magnetic-btn cursor-pointer hover-lift ${
+                    className={`relative flex items-center justify-center w-10 h-10 rounded-lg text-sm font-medium transition-all duration-300 magnetic-btn cursor-pointer hover-lift ${
                       isActive
                         ? 'bg-emerald-500 text-white shadow-lg'
                         : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
@@ -113,6 +132,11 @@ const Navbar = () => {
                     onMouseLeave={handleMouseLeave}
                   >
                     {getIcon(item.icon)}
+                    {isNotifications && unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[1.25rem] h-5 flex items-center justify-center animate-pulse">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
                   </Link>
                 )
               })}
@@ -139,19 +163,6 @@ const Navbar = () => {
 
             {/* Quick Actions */}
             <div className="hidden md:flex items-center space-x-2">
-              <button 
-                className="p-2 text-gray-600 hover:bg-emerald-100 rounded-lg transition-all duration-300 relative hover-lift cursor-pointer"
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
-                onClick={() => navigate('/notifications')}
-                title="Notifications"
-                aria-label="Notifications"
-              >
-                <svg className="w-5 h-5 transition-transform duration-300 hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse-soft"></span>
-              </button>
               
               <button 
                 className="px-3 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all duration-300 text-sm flex items-center space-x-1 magnetic-btn cursor-pointer hover-lift shadow-md hover:shadow-lg"

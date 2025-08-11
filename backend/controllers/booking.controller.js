@@ -1,6 +1,7 @@
 import Booking from "../models/booking.model.js";
 import Payment from "../models/payment.model.js";
 import Notification from "../models/notification.model.js";
+import NotificationService from "../services/notification.service.js";
 import { createStripePaymentIntent, confirmStripePayment, createStripeTransfer, refundStripePayment } from "../services/payment.service.js";
 import { sendEmail } from '../services/email.service.js';
 
@@ -120,69 +121,10 @@ export const createRentalRequest = async (req, res) => {
   }
 };
 
-// Owner accepts rental request
-export const acceptRentalRequest = async (req, res) => {
-  try {
-    const { bookingId } = req.params;
-    const { pickupLocation, dropLocation } = req.body;
-
-    const booking = await Booking.findById(bookingId);
-    if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
-
-    booking.status = "confirmed";
-    if (pickupLocation) booking.pickupLocation = pickupLocation;
-    if (dropLocation) booking.dropLocation = dropLocation;
-    await booking.save();
-
-    // Create notification for renter
-    await Notification.create({
-      userId: booking.renterId,
-      userClerkId: booking.renterClerkId,
-      type: "payment_confirmation",
-      message: `Your rental request has been accepted! Please proceed with payment.`,
-      relatedId: booking._id,
-      relatedType: "booking"
-    });
-
-    res.json({ success: true, message: "Rental request accepted", booking });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to accept rental request", error: error.message });
-  }
-};
-
-// Owner rejects rental request
-export const rejectRentalRequest = async (req, res) => {
-  try {
-    const { bookingId } = req.params;
-    const { reason } = req.body;
-
-    const booking = await Booking.findById(bookingId);
-    if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
-
-    booking.status = "cancelled";
-    booking.cancelReason = reason || "Owner rejected the request";
-    await booking.save();
-
-    // Create notification for renter
-    await Notification.create({
-      userId: booking.renterId,
-      userClerkId: booking.renterClerkId,
-      type: "system",
-      message: `Your rental request was rejected: ${booking.cancelReason}`,
-      relatedId: booking._id,
-      relatedType: "booking"
-    });
-
-    res.json({ success: true, message: "Rental request rejected", booking });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to reject rental request", error: error.message });
-  }
-};
-
-// Create booking
+// Create booking (rental request)
 export const createBooking = async (req, res) => {
   try {
-    const { productId, renterId, renterClerkId, ownerId, ownerClerkId, startDate, endDate, totalPrice } = req.body;
+    const { productId, renterId, renterClerkId, ownerId, ownerClerkId, startDate, endDate, totalPrice, productTitle } = req.body;
 
     const { platformFee, ownerAmount } = calculateAmounts(totalPrice);
 
@@ -197,13 +139,113 @@ export const createBooking = async (req, res) => {
       totalPrice,
       platformFee,
       ownerAmount,
-      status: "pending",
+      status: "requested",
       paymentStatus: "unpaid"
     });
+
+    // Create notification for owner about rental request
+    try {
+      await NotificationService.createRentalRequestNotification({
+        renterId: renterClerkId,
+        ownerId: ownerClerkId,
+        productId,
+        productTitle: productTitle || 'Product',
+        startDate,
+        endDate,
+        totalAmount: totalPrice,
+        bookingId: booking._id
+      });
+    } catch (notificationError) {
+      console.error('Failed to create rental request notification:', notificationError);
+    }
 
     res.status(201).json({ success: true, booking });
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to create booking", error: error.message });
+  }
+};
+
+// Accept rental request (owner action)
+export const acceptRentalRequest = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { ownerClerkId } = req.body;
+
+    const booking = await Booking.findById(bookingId).populate('productId', 'title');
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.ownerClerkId !== ownerClerkId) {
+      return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (booking.status !== "requested") {
+      return res.status(400).json({ success: false, message: "Booking already processed" });
+    }
+
+    // Update booking status
+    booking.status = "pending_payment";
+    await booking.save();
+
+    // Notify renter that request was accepted and payment is needed
+    try {
+      await NotificationService.createRentalAcceptanceNotification({
+        renterId: booking.renterClerkId,
+        ownerId: booking.ownerClerkId,
+        productTitle: booking.productId?.title || 'Product',
+        bookingId: booking._id,
+        totalAmount: booking.totalPrice
+      });
+    } catch (notificationError) {
+      console.error('Failed to create acceptance notification:', notificationError);
+    }
+
+    res.json({ success: true, message: "Rental request accepted", booking });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to accept rental request", error: error.message });
+  }
+};
+
+// Reject rental request (owner action)
+export const rejectRentalRequest = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { ownerClerkId, reason } = req.body;
+
+    const booking = await Booking.findById(bookingId).populate('productId', 'title');
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.ownerClerkId !== ownerClerkId) {
+      return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (booking.status !== "requested") {
+      return res.status(400).json({ success: false, message: "Booking already processed" });
+    }
+
+    // Update booking status
+    booking.status = "rejected";
+    booking.cancelReason = reason || "Rejected by owner";
+    await booking.save();
+
+    // Notify renter that request was rejected
+    try {
+      await NotificationService.createRentalRejectionNotification({
+        renterId: booking.renterClerkId,
+        ownerId: booking.ownerClerkId,
+        productTitle: booking.productId?.title || 'Product',
+        bookingId: booking._id
+      });
+    } catch (notificationError) {
+      console.error('Failed to create rejection notification:', notificationError);
+    }
+
+    res.json({ success: true, message: "Rental request rejected", booking });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to reject rental request", error: error.message });
   }
 };
 
@@ -252,8 +294,12 @@ export const confirmBookingPayment = async (req, res) => {
       });
     }
 
-    const booking = await Booking.findById(bookingId);
+    const booking = await Booking.findById(bookingId).populate('productId', 'title');
     if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
+
+    if (booking.status !== "pending_payment") {
+      return res.status(400).json({ success: false, message: "Booking is not ready for payment" });
+    }
 
     const payment = await Payment.create({
       bookingId,
@@ -277,15 +323,37 @@ export const confirmBookingPayment = async (req, res) => {
     booking.paymentId = payment._id;
     await booking.save();
 
-    // Create notification for owner
-    await Notification.create({
-      userId: booking.ownerId,
-      userClerkId: booking.ownerClerkId,
-      type: "payment_confirmation",
-      message: `Payment received for rental request`,
-      relatedId: booking._id,
-      relatedType: "booking"
-    });
+    // Create dynamic notifications for payment confirmation
+    try {
+      // Notify the renter about successful payment
+      await NotificationService.createPaymentConfirmationNotification({
+        userClerkId: booking.renterClerkId,
+        amount: booking.totalPrice,
+        method: 'Credit Card',
+        bookingId: booking._id,
+        productTitle: 'Rented Product' // You might want to populate product details
+      });
+
+      // Notify the owner about received payment
+      await NotificationService.createPaymentConfirmationNotification({
+        userClerkId: booking.ownerClerkId,
+        amount: booking.ownerAmount,
+        method: 'Transfer',
+        bookingId: booking._id,
+        productTitle: 'Your Product' // You might want to populate product details
+      });
+
+      // Update booking status notification for renter
+      await NotificationService.createBookingStatusNotification({
+        userClerkId: booking.renterClerkId,
+        status: 'confirmed',
+        productTitle: 'Your Rental',
+        bookingId: booking._id
+      });
+    } catch (notificationError) {
+      console.error('Failed to create payment notifications:', notificationError);
+      // Don't fail the payment confirmation if notifications fail
+    }
 
     res.json({ success: true, booking, payment });
   } catch (error) {

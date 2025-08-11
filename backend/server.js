@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 // Import routes
 import userRoutes from './routes/user.routes.js';
@@ -35,7 +36,15 @@ app.use(cookieParser());
 // Serve uploads folder statically
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('📁 Created uploads directory');
+}
+
+app.use('/uploads', express.static(uploadsDir));
 
 // Connect to MongoDB
 const connectDB = async () => {
@@ -79,10 +88,36 @@ app.use('/api/*', (req, res) => {
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Server Error:', error);
+  
+  // Handle specific error types
+  if (error.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation error',
+      error: error.message
+    });
+  }
+  
+  if (error.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid ID format',
+      error: error.message
+    });
+  }
+  
+  if (error.code === 11000) {
+    return res.status(409).json({
+      success: false,
+      message: 'Duplicate entry',
+      error: 'Resource already exists'
+    });
+  }
+  
   res.status(500).json({
     success: false,
     message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
   });
 });
 

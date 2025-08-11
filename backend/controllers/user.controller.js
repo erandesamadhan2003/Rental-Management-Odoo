@@ -1,4 +1,5 @@
 import User from '../models/user.js'
+import NotificationService from '../services/notification.service.js'
 
 // Helper function to handle errors
 const handleError = (res, error, message = 'An error occurred', statusCode = 500) => {
@@ -15,15 +16,31 @@ export const createUser = async (req, res) => {
   try {
     const { clerkId, email, username, firstName, lastName, photo } = req.body
 
+    if (!clerkId || !email || !username) {
+      return res.status(400).json({
+        success: false,
+        message: 'clerkId, email, and username are required',
+      })
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({
       $or: [{ clerkId }, { email }, { username }]
     })
 
     if (existingUser) {
+      // If user exists with same clerkId, return the existing user instead of error
+      if (existingUser.clerkId === clerkId) {
+        return res.status(200).json({
+          success: true,
+          message: 'User already exists',
+          user: existingUser,
+        })
+      }
+      
       return res.status(409).json({
         success: false,
-        message: 'User already exists',
+        message: 'User with this email or username already exists',
       })
     }
 
@@ -35,6 +52,22 @@ export const createUser = async (req, res) => {
       lastName: lastName || '',
       photo: photo || '',
     })
+
+    // Create welcome notification for new user
+    try {
+      await NotificationService.createSystemNotification({
+        userClerkId: clerkId,
+        message: `Welcome to our rental platform, ${firstName || username}! Start by listing your first product or browsing available rentals.`,
+        metadata: {
+          welcomeBonus: true,
+          action: 'user_welcome',
+          signupDate: new Date()
+        }
+      })
+    } catch (notificationError) {
+      console.error('Failed to create welcome notification:', notificationError)
+      // Don't fail user creation if notification fails
+    }
 
     return res.status(201).json({
       success: true,
@@ -51,7 +84,7 @@ export const getUserById = async (req, res) => {
   try {
     const { userId } = req.params
 
-    const user = await User.findById(userId).populate('events').populate('orders')
+    const user = await User.findById(userId).populate('products').populate('bookings')
 
     if (!user) {
       return res.status(404).json({
@@ -74,7 +107,14 @@ export const getUserByClerkId = async (req, res) => {
   try {
     const { clerkId } = req.params
 
-    const user = await User.findOne({ clerkId }).populate('events').populate('orders')
+    if (!clerkId || clerkId === 'undefined') {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid Clerk ID is required',
+      })
+    }
+
+    const user = await User.findOne({ clerkId }).populate('products').populate('bookings')
 
     if (!user) {
       return res.status(404).json({
@@ -97,6 +137,13 @@ export const updateUser = async (req, res) => {
   try {
     const { clerkId } = req.params
     const updateData = req.body
+
+    if (!clerkId || clerkId === 'undefined') {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid Clerk ID is required',
+      })
+    }
 
     const updatedUser = await User.findOneAndUpdate(
       { clerkId },
@@ -136,8 +183,7 @@ export const deleteUser = async (req, res) => {
       })
     }
 
-    // Note: You'll need to implement Event and Order models for this to work
-    // For now, we'll just delete the user
+    // Delete user - clean up related data
     const deletedUser = await User.findByIdAndDelete(userToDelete._id)
 
     return res.status(200).json({

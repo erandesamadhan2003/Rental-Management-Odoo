@@ -136,16 +136,17 @@ const Products = () => {
 
   // Helper function to get availability status
   const getAvailabilityStatus = (product) => {
-    if (!product.availability || !Array.isArray(product.availability)) {
-      return 'unavailable'
+    // If no availability periods are set, consider the product available by default
+    if (!product.availability || !Array.isArray(product.availability) || product.availability.length === 0) {
+      return 'available'
     }
     
-    // Check if there are any available periods
+    // Check if there are any current or future available periods
     const now = new Date()
     const hasAvailablePeriod = product.availability.some(period => {
-      const startDate = new Date(period.startDate)
       const endDate = new Date(period.endDate)
-      return startDate <= now && now <= endDate
+      // Product is available if the availability period hasn't ended yet
+      return endDate >= now
     })
     
     return hasAvailablePeriod ? 'available' : 'unavailable'
@@ -712,7 +713,7 @@ const ProductFormModal = ({ product, onClose, onSave, isEditing }) => {
 
   const CATEGORIES = ['Sports', 'Badminton', 'Cricket', 'Football', 'Cycling', 'Photography', 'Music', 'Camping', 'Tools', 'Electronics']
   const TARGET_AUDIENCES = ['Beginners', 'Professionals', 'Kids', 'Adults', 'All Ages']
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -783,7 +784,7 @@ const ProductFormModal = ({ product, onClose, onSave, isEditing }) => {
     
     try {
       const payload = {
-        ownerClerkId: user.id,
+        clerkId: user.id, // Changed from ownerClerkId to clerkId
         title: form.title.trim(),
         description: form.description.trim(),
         category: form.category,

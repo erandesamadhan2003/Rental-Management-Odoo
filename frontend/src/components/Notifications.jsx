@@ -3,6 +3,7 @@ import { useUser } from '@clerk/clerk-react'
 import Navbar from './Navbar'
 import { useNotifications } from '../hooks/useRedux'
 import { getNotifications, markAsRead, markAllAsRead, deleteNotification, getUnreadCount } from '../app/features/notificationSlice'
+import { acceptRentalRequest, rejectRentalRequest } from '../app/features/bookingSlice'
 
 const Notifications = () => {
   const { user } = useUser()
@@ -735,22 +736,85 @@ const renderDetailedMetadata = (notification) => {
 }
 
 const renderNotificationActions = (notification) => {
+  const handleAcceptRental = async () => {
+    try {
+      if (notification.metadata?.bookingId) {
+        await dispatch(acceptRentalRequest(notification.metadata.bookingId))
+        // Mark notification as read after action
+        await dispatch(markAsRead(notification._id))
+        // Refresh notifications to get the latest state
+        dispatch(getNotifications({ 
+          userId: user.id, 
+          page: currentPage, 
+          limit: 10 
+        }))
+      }
+    } catch (error) {
+      console.error('Error accepting rental request:', error)
+    }
+  }
+
+  const handleRejectRental = async () => {
+    try {
+      if (notification.metadata?.bookingId) {
+        await dispatch(rejectRentalRequest(notification.metadata.bookingId))
+        // Mark notification as read after action
+        await dispatch(markAsRead(notification._id))
+        // Refresh notifications to get the latest state
+        dispatch(getNotifications({ 
+          userId: user.id, 
+          page: currentPage, 
+          limit: 10 
+        }))
+      }
+    } catch (error) {
+      console.error('Error rejecting rental request:', error)
+    }
+  }
+
+  const handlePayNow = () => {
+    // Navigate to payment page
+    if (notification.metadata?.bookingId) {
+      window.location.href = `/payment?bookingId=${notification.metadata.bookingId}`
+    }
+  }
+
   // Add specific action buttons based on notification type
   switch (notification.type) {
     case 'rental_request':
       return (
         <>
-          <button className="text-xs text-green-600 hover:text-green-800 font-medium">
+          <button 
+            onClick={handleAcceptRental}
+            className="text-xs text-green-600 hover:text-green-800 font-medium bg-green-50 hover:bg-green-100 px-2 py-1 rounded transition-colors"
+            disabled={isLoading}
+          >
             Accept
           </button>
-          <button className="text-xs text-red-600 hover:text-red-800 font-medium">
+          <button 
+            onClick={handleRejectRental}
+            className="text-xs text-red-600 hover:text-red-800 font-medium bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition-colors"
+            disabled={isLoading}
+          >
             Decline
           </button>
         </>
       )
+    case 'rental_accepted':
+      return (
+        <button 
+          onClick={handlePayNow}
+          className="text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
+        >
+          Pay Now
+        </button>
+      )
     case 'due_payment':
       return (
-        <button className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+        <button 
+          onClick={handlePayNow}
+          className="text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
+        >
           Pay Now
         </button>
       )
