@@ -124,6 +124,21 @@ export const viewInvoice = async (req, res) => {
 const generateInvoiceHTML = (invoice) => {
   const booking = invoice.bookingId;
   const user = invoice.userId;
+  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const invoiceDate = invoice.createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const dueDate = invoice.dueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  
+  // Calculate subtotal and tax
+  let subtotal = 0;
+  invoice.items.forEach(item => {
+    if (!item.description.includes('GST')) {
+      subtotal += item.total;
+    }
+  });
+  
+  // Find tax item
+  const taxItem = invoice.items.find(item => item.description.includes('GST'));
+  const taxAmount = taxItem ? taxItem.total : 0;
   
   return `
     <!DOCTYPE html>
@@ -132,61 +147,127 @@ const generateInvoiceHTML = (invoice) => {
       <meta charset="utf-8">
       <title>Invoice ${invoice.invoiceNumber}</title>
       <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .invoice-details { margin-bottom: 20px; }
-        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        .items-table th, .items-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        .items-table th { background-color: #f5f5f5; }
-        .total { text-align: right; font-weight: bold; }
+        body { font-family: 'Helvetica', 'Arial', sans-serif; margin: 0; padding: 0; color: #333; line-height: 1.6; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .header { border-bottom: 2px solid #4a86e8; padding-bottom: 20px; margin-bottom: 30px; }
+        .logo { font-size: 28px; font-weight: bold; color: #4a86e8; }
+        .company-details { float: right; text-align: right; }
+        .invoice-title { clear: both; text-align: center; margin: 40px 0 20px; }
+        .invoice-title h1 { margin: 0; color: #4a86e8; font-size: 36px; }
+        .invoice-title h2 { margin: 5px 0 0; font-size: 20px; color: #666; font-weight: normal; }
+        .invoice-info { display: flex; justify-content: space-between; margin-bottom: 40px; }
+        .invoice-info-block { width: 45%; }
+        .invoice-info-block h4 { margin: 0 0 5px; color: #4a86e8; font-size: 16px; }
+        .invoice-info-block p { margin: 0 0 5px; }
+        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .items-table th { background-color: #f5f5f5; color: #4a86e8; text-align: left; padding: 12px; border-bottom: 2px solid #ddd; }
+        .items-table td { padding: 12px; border-bottom: 1px solid #ddd; }
+        .items-table .amount { text-align: right; }
+        .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .summary-table td { padding: 8px; }
+        .summary-table .label { text-align: right; font-weight: normal; width: 80%; }
+        .summary-table .amount { text-align: right; width: 20%; }
+        .summary-table .total-row td { font-weight: bold; font-size: 18px; border-top: 2px solid #4a86e8; padding-top: 12px; }
+        .terms { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 20px; }
+        .terms h4 { color: #4a86e8; margin: 0 0 10px; }
+        .footer { margin-top: 50px; text-align: center; color: #888; font-size: 14px; }
+        .signature-area { margin-top: 60px; display: flex; justify-content: space-between; }
+        .signature-box { border-top: 1px solid #000; width: 200px; padding-top: 5px; text-align: center; }
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>INVOICE</h1>
-        <h2>${invoice.invoiceNumber}</h2>
-      </div>
-      
-      <div class="invoice-details">
-        <p><strong>Bill To:</strong></p>
-        <p>${user.firstName} ${user.lastName}</p>
-        <p>${user.email}</p>
-        <br>
-        <p><strong>Invoice Date:</strong> ${invoice.createdAt.toDateString()}</p>
-        <p><strong>Due Date:</strong> ${invoice.dueDate.toDateString()}</p>
-        <p><strong>Status:</strong> ${invoice.status.toUpperCase()}</p>
-      </div>
-      
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th>Quantity</th>
-            <th>Unit Price</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${invoice.items.map(item => `
+      <div class="container">
+        <div class="header">
+          <div class="logo">RENTAL MANAGEMENT SYSTEM</div>
+          <div class="company-details">
+            <p>123 Business Street</p>
+            <p>City, State 12345</p>
+            <p>Phone: (123) 456-7890</p>
+            <p>Email: support@rentalsystem.com</p>
+            <p>GST No: 29AADCB2230M1ZP</p>
+          </div>
+        </div>
+        
+        <div class="invoice-title">
+          <h1>INVOICE</h1>
+          <h2>${invoice.invoiceNumber}</h2>
+        </div>
+        
+        <div class="invoice-info">
+          <div class="invoice-info-block">
+            <h4>BILL TO:</h4>
+            <p><strong>${user.firstName} ${user.lastName}</strong></p>
+            <p>${user.email}</p>
+            <p>${user.phone || 'No phone provided'}</p>
+          </div>
+          
+          <div class="invoice-info-block">
+            <h4>INVOICE DETAILS:</h4>
+            <p><strong>Invoice Date:</strong> ${invoiceDate}</p>
+            <p><strong>Due Date:</strong> ${dueDate}</p>
+            <p><strong>Status:</strong> ${invoice.status.toUpperCase()}</p>
+            <p><strong>Payment Terms:</strong> Due on receipt</p>
+          </div>
+        </div>
+        
+        <table class="items-table">
+          <thead>
             <tr>
-              <td>${item.description}</td>
-              <td>${item.quantity}</td>
-              <td>₹${item.unitPrice.toFixed(2)}</td>
-              <td>₹${item.total.toFixed(2)}</td>
+              <th>Description</th>
+              <th>Quantity</th>
+              <th class="amount">Unit Price</th>
+              <th class="amount">Total</th>
             </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      
-      <div class="total">
-        <h3>Total Amount: ₹${invoice.amount.toFixed(2)}</h3>
+          </thead>
+          <tbody>
+            ${invoice.items.map(item => `
+              <tr>
+                <td>${item.description}</td>
+                <td>${item.quantity}</td>
+                <td class="amount">₹${item.unitPrice.toFixed(2)}</td>
+                <td class="amount">₹${item.total.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        
+        <table class="summary-table">
+          <tr>
+            <td class="label">Subtotal:</td>
+            <td class="amount">₹${subtotal.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td class="label">GST (18%):</td>
+            <td class="amount">₹${taxAmount.toFixed(2)}</td>
+          </tr>
+          <tr class="total-row">
+            <td class="label">Total Amount:</td>
+            <td class="amount">₹${invoice.amount.toFixed(2)}</td>
+          </tr>
+        </table>
+        
+        <div class="terms">
+          <h4>Terms & Conditions</h4>
+          <ol>
+            <p>1. Payment is due within 7 days of invoice date.</p>
+            <p>2. This invoice is subject to the terms of the rental agreement.</p>
+            <p>3. Late payments are subject to a 2% monthly interest charge.</p>
+            <p>4. All disputes must be raised within 7 days of invoice receipt.</p>
+          </ol>
+        </div>
+        
+        ${invoice.notes ? `<div class="notes"><h4>Additional Notes</h4><p>${invoice.notes}</p></div>` : ''}
+        
+        <div class="signature-area">
+          <div class="signature-box">Authorized Signature</div>
+          <div class="signature-box">Customer Signature</div>
+        </div>
+        
+        <div class="footer">
+          <p>This is a computer-generated invoice and does not require a physical signature.</p>
+          <p>Thank you for your business!</p>
+        </div>
       </div>
-      
-      ${invoice.notes ? `<p><strong>Notes:</strong> ${invoice.notes}</p>` : ''}
-      
-      <p style="margin-top: 30px; text-align: center; color: #666;">
-        Thank you for your business!
-      </p>
     </body>
     </html>
   `;

@@ -16,29 +16,17 @@ const CheckoutForm = ({ clientSecret, booking, onSuccess }) => {
   const handleSubmit = async (event) => {
     event.preventDefault()
 
-    // TESTING MODE: Don't require stripe or elements to be loaded
-    // if (!stripe || !elements) {
-    //   // Stripe.js has not loaded yet
-    //   return
-    // }
+    if (!stripe || !elements) {
+      // Stripe.js has not loaded yet
+      return
+    }
 
     setLoading(true)
     setError('')
 
-    // Get a reference to the CardElement (if available)
-    const cardElement = elements ? elements.getElement(CardElement) : null
+    // Get a reference to the CardElement
+    const cardElement = elements.getElement(CardElement)
 
-    // TESTING MODE: Bypass Stripe validation
-    console.log('TEST MODE: Bypassing Stripe validation for testing purposes');
-    
-    // Skip actual payment validation and create a mock successful paymentIntent
-    const mockPaymentIntent = {
-      id: 'test_pi_' + Date.now(),
-      status: 'succeeded'
-    };
-    
-    // Comment out actual Stripe validation for testing
-    /*
     // Use card element with confirmCardPayment
     const { error: paymentError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
       payment_method: {
@@ -54,17 +42,10 @@ const CheckoutForm = ({ clientSecret, booking, onSuccess }) => {
       setLoading(false)
       return
     }
-    */
-    
-    // Use mock payment intent instead of actual one
-    const paymentIntent = mockPaymentIntent;
-    
-    // Always consider payment as succeeded for testing
-    if (true) { // Was: if (paymentIntent.status === 'succeeded') {
+
+    if (paymentIntent.status === 'succeeded') {
       // Payment successful, confirm on backend
       try {
-        console.log('TEST MODE: Confirming payment with mock payment intent ID:', paymentIntent.id);
-        
         const response = await fetch(`${API_BASE_URL}/payments/confirm`, {
           method: 'POST',
           headers: {
@@ -77,35 +58,17 @@ const CheckoutForm = ({ clientSecret, booking, onSuccess }) => {
         })
 
         if (!response.ok) {
-          console.error('TEST MODE: Backend confirmation failed, but proceeding anyway for testing');
-          // For testing, we'll proceed even if the backend confirmation fails
-          onSuccess({
-            success: true,
-            message: 'TEST MODE: Payment processed successfully',
-            paymentId: 'test_' + Date.now(),
-            bookingId: booking._id
-          });
-          return;
+          throw new Error('Payment confirmation failed')
         }
 
         const data = await response.json()
         onSuccess(data)
       } catch (err) {
-        console.error('TEST MODE: Error during confirmation, but proceeding anyway:', err);
-        // For testing, we'll proceed even if there's an error
-        onSuccess({
-          success: true,
-          message: 'TEST MODE: Payment processed successfully despite errors',
-          paymentId: 'test_' + Date.now(),
-          bookingId: booking._id
-        });
+        setError(err.message || 'Payment confirmation failed')
       }
-    } 
-    /* In test mode, we never reach this else block because we're always setting the payment as successful
-    else {
+    } else {
       setError(`Payment status: ${paymentIntent.status}. Please try again.`)
     }
-    */
 
     setLoading(false)
   }
@@ -113,12 +76,6 @@ const CheckoutForm = ({ clientSecret, booking, onSuccess }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="p-4 border rounded-md bg-white">
-        {/* TESTING MODE: Add a message about test mode */}
-        <div className="mb-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-sm">
-          <p className="font-medium">TEST MODE ACTIVE</p>
-          <p>Card validation is bypassed. You can enter any values or click Pay Now directly.</p>
-        </div>
-        
         <CardElement
           options={{
             style: {
@@ -133,8 +90,6 @@ const CheckoutForm = ({ clientSecret, booking, onSuccess }) => {
                 color: '#9e2146',
               },
             },
-            // Disable all client-side validation for testing
-            hidePostalCode: true
           }}
         />
       </div>
@@ -145,13 +100,12 @@ const CheckoutForm = ({ clientSecret, booking, onSuccess }) => {
         </div>
       )}
       
-      {/* Removed !stripe condition for testing */}
       <button
         type="submit"
-        disabled={loading}
+        disabled={!stripe || loading}
         className="w-full px-4 py-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {loading ? 'Processing Payment...' : 'Pay Now (Test Mode)'}
+        {loading ? 'Processing Payment...' : 'Pay Now'}
       </button>
     </form>
   )
@@ -174,39 +128,26 @@ const PaymentForm = ({ booking, onSuccess, onClose }) => {
       setLoading(true)
       setError('')
       
-      console.log('TEST MODE: Initiating payment for testing');
-      
-      // Try to get a client secret from the backend
-      try {
-        const response = await fetch(`${API_BASE_URL}/payments/initiate`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            bookingId: booking._id,
-            amount: booking.totalPrice,
-            currency: 'inr'
-          })
+      const response = await fetch(`${API_BASE_URL}/payments/initiate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bookingId: booking._id,
+          amount: booking.totalPrice,
+          currency: 'inr'
         })
+      })
 
-        if (response.ok) {
-          const data = await response.json()
-          setClientSecret(data.clientSecret)
-        } else {
-          console.warn('TEST MODE: Failed to get client secret from backend, using mock client secret');
-          // For testing, create a mock client secret if the backend fails
-          setClientSecret('test_secret_' + Date.now());
-        }
-      } catch (err) {
-        console.warn('TEST MODE: Error getting client secret, using mock client secret:', err);
-        // For testing, create a mock client secret if there's an error
-        setClientSecret('test_secret_' + Date.now());
+      if (!response.ok) {
+        throw new Error('Failed to initiate payment')
       }
+
+      const data = await response.json()
+      setClientSecret(data.clientSecret)
     } catch (err) {
-      console.error('TEST MODE: Unexpected error in initiatePayment:', err);
-      // Even in case of errors, set a mock client secret for testing
-      setClientSecret('test_secret_' + Date.now());
+      setError(err.message || 'Failed to initiate payment')
     } finally {
       setLoading(false)
     }
@@ -263,23 +204,24 @@ const PaymentForm = ({ booking, onSuccess, onClose }) => {
             </div>
           )}
 
-          {/* Always show payment form in test mode */}
-          <div className="space-y-4">
-            <div className="bg-green-50 border border-green-200 rounded-md p-3">
-              <p className="text-sm text-green-800">
-                <strong>TEST MODE:</strong> Payment ready! Amount: ₹{booking.totalPrice}
-              </p>
-            </div>
+          {clientSecret && (
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                <p className="text-sm text-green-800">
+                  Payment ready! Amount: ₹{booking.totalPrice}
+                </p>
+              </div>
 
-            {/* Stripe Elements integration - Modified for testing */}
-            <Elements stripe={stripePromise} options={{ clientSecret: clientSecret || 'test_secret', loader: 'never' }}>
-              <CheckoutForm 
-                clientSecret={clientSecret || 'test_secret'} 
-                booking={booking} 
-                onSuccess={onSuccess} 
-              />
-            </Elements>
-          </div>
+              {/* Stripe Elements integration */}
+              <Elements stripe={stripePromise} options={{ clientSecret }}>
+                <CheckoutForm 
+                  clientSecret={clientSecret} 
+                  booking={booking} 
+                  onSuccess={onSuccess} 
+                />
+              </Elements>
+            </div>
+          )}
 
           <div className="mt-4 text-center">
             <p className="text-xs text-gray-500">

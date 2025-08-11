@@ -10,18 +10,28 @@ const generateDocumentNumber = (type) => {
   return `${prefix}-${timestamp}-${random}`;
 };
 
-// Generate rental agreement for approved booking
+// Generate rental agreement document
 export const generateRentalAgreement = async (bookingId) => {
   try {
     const booking = await Booking.findById(bookingId)
-      .populate('productId', 'title category')
-      .populate('renterId', 'firstName lastName email phone')
-      .populate('ownerId', 'firstName lastName email phone');
+      .populate('productId')
+      .populate('ownerId', 'firstName lastName email phone')
+      .populate('renterId', 'firstName lastName email phone');
     
     if (!booking) {
       throw new Error('Booking not found');
     }
-
+    
+    // Calculate rental duration in days
+    const startDate = new Date(booking.startDate);
+    const endDate = new Date(booking.endDate);
+    const durationMs = endDate.getTime() - startDate.getTime();
+    const durationDays = Math.ceil(durationMs / (1000 * 60 * 60 * 24));
+    
+    // Format dates for display
+    const formattedStartDate = startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const formattedEndDate = endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    
     // Create rental agreement document
     const document = {
       bookingId: booking._id,
@@ -35,7 +45,7 @@ export const generateRentalAgreement = async (bookingId) => {
         condition: 'good',
         notes: `Rental agreement for ${booking.productId.title}`
       }],
-      notes: `Rental agreement between ${booking.ownerId.firstName} ${booking.ownerId.lastName} (Owner) and ${booking.renterId.firstName} ${booking.renterId.lastName} (Renter) for ${booking.productId.title}`
+      notes: `This legally binding Rental Agreement is made on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} between ${booking.ownerId.firstName} ${booking.ownerId.lastName} ("Owner") and ${booking.renterId.firstName} ${booking.renterId.lastName} ("Renter") for the rental of ${booking.productId.title} from ${formattedStartDate} to ${formattedEndDate} (${durationDays} days) for a total amount of ₹${booking.totalAmount.toFixed(2)}. Both parties agree to the terms and conditions outlined in this agreement.`
     };
 
     return document;

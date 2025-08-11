@@ -19,6 +19,7 @@ import pricelistRoutes from './routes/pricelist.routes.js';
 import invoiceRoutes from './routes/invoice.routes.js';
 import reminderRoutes from './routes/reminder.routes.js';
 import documentRoutes from './routes/document.routes.js';
+import testRoutes from './routes/test.routes.js';
 
 // Import cron job service
 import rentalReminderCron from './services/rentalReminder.cron.js';
@@ -49,7 +50,15 @@ if (!fs.existsSync(uploadsDir)) {
   console.log('📁 Created uploads directory');
 }
 
+// Create public directory if it doesn't exist
+const publicDir = path.join(__dirname, 'public');
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+  console.log('📁 Created public directory');
+}
+
 app.use('/uploads', express.static(uploadsDir));
+app.use('/public', express.static(publicDir));
 
 // Connect to MongoDB
 const connectDB = async () => {
@@ -74,6 +83,7 @@ app.use('/api/pricelists', pricelistRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/test', testRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -82,6 +92,11 @@ app.get('/api/health', (req, res) => {
     message: 'Server is running',
     timestamp: new Date().toISOString()
   });
+});
+
+// Test document generation page
+app.get('/test-documents', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'test-documents.html'));
 });
 
 // 404 handler for API routes only
