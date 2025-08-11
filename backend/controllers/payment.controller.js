@@ -1,6 +1,10 @@
 import Payment from "../models/payment.model.js";
 import Booking from "../models/booking.model.js";
+import User from "../models/user.js";
 import Stripe from "stripe";
+import { sendEmail } from '../services/email.service.js';
+import { createInvoiceForBooking } from './invoice.controller.js';
+import { createStripePaymentIntent, confirmStripePayment } from '../services/payment.service.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2024-12-18.acacia",
@@ -12,6 +16,150 @@ export const getAllPayments = async (req, res) => {
     res.json({ success: true, payments });
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to fetch payments", error: error.message });
+  }
+};
+
+// Initiate payment for a booking
+export const initiatePayment = async (req, res) => {
+  try {
+    const { id } = req.params; // bookingId
+    
+    const booking = await Booking.findById(id).populate('productId');
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+    
+    // Check if payment is already initiated
+    const existingPayment = await Payment.findOne({ bookingId: booking._id, status: { $in: ['completed', 'processing'] } });
+    if (existingPayment) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Payment already initiated for this booking',
+        paymentIntent: {
+          id: existingPayment.gatewayPaymentId,
+          client_secret: existingPayment.clientSecret,
+          amount: existingPayment.amount * 100, // Convert to cents for frontend
+          currency: existingPayment.currency
+        }
+      });
+    }
+    
+    // Create a payment intent with Stripe
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(booking.totalPrice * 100), // Convert to cents
+      currency: 'inr',
+      metadata: {
+        bookingId: booking._id.toString(),
+        productId: booking.productId._id.toString(),
+        renterId: booking.renterId.toString(),
+        ownerId: booking.ownerId.toString()
+      },
+      automatic_payment_methods: {
+        enabled: true,
+      },
+    });
+    
+    // Create a pending payment record
+    await Payment.create({
+      bookingId: booking._id,
+      renterId: booking.renterId,
+      renterClerkId: booking.renterClerkId,
+      ownerId: booking.ownerId,
+      ownerClerkId: booking.ownerClerkId,
+      paymentGateway: 'stripe',
+      gatewayPaymentId: paymentIntent.id,
+      clientSecret: paymentIntent.client_secret,
+      amount: booking.totalPrice,
+      currency: 'inr',
+      platformFee: booking.platformFee,
+      ownerAmount: booking.ownerAmount,
+      status: 'pending'
+    });
+    
+    // Return the payment intent details to the client
+    res.json({
+      success: true,
+      paymentIntent: {
+        id: paymentIntent.id,
+        client_secret: paymentIntent.client_secret,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency
+      }
+    });
+  } catch (error) {
+    console.error('Error initiating payment:', error);
+    res.status(500).json({ success: false, message: 'Failed to initiate payment', error: error.message });
+  }
+};
+
+// Confirm payment for a booking
+export const confirmPayment = async (req, res) => {
+  try {
+    const { id } = req.params; // bookingId
+    const { paymentIntentId } = req.body;
+    
+    if (!paymentIntentId) {
+      return res.status(400).json({ success: false, message: 'Payment intent ID is required' });
+    }
+    
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+    
+    // Retrieve the payment intent from Stripe
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    
+    // Verify payment status
+    if (paymentIntent.status !== 'succeeded') {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Payment not completed. Status: ${paymentIntent.status}` 
+      });
+    }
+    
+    // Update payment record
+    const payment = await Payment.findOneAndUpdate(
+      { gatewayPaymentId: paymentIntentId },
+      { 
+        status: 'completed',
+        gatewayChargeId: paymentIntent.latest_charge,
+        paymentDate: new Date()
+      },
+      { new: true }
+    );
+    
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment record not found' });
+    }
+    
+    // Update booking status
+    booking.status = 'paid';
+    booking.paymentStatus = 'completed';
+    await booking.save();
+    
+    // Generate invoice
+    const invoice = await createInvoiceForBooking(booking._id);
+    
+    // Send confirmation emails
+    const populatedBooking = await Booking.findById(booking._id)
+      .populate('productId')
+      .populate('renterId')
+      .populate('ownerId');
+      
+    // Send payment confirmation emails
+    await sendPaymentConfirmationEmail(populatedBooking, payment);
+    
+    res.json({
+      success: true,
+      message: 'Payment confirmed successfully',
+      booking,
+      payment,
+      invoice
+    });
+  } catch (error) {
+    console.error('Error confirming payment:', error);
+    res.status(500).json({ success: false, message: 'Failed to confirm payment', error: error.message });
   }
 };
 
@@ -62,6 +210,151 @@ export const handleStripeWebhook = async (req, res) => {
   }
 };
 
+// Send payment confirmation email
+const sendPaymentConfirmationEmail = async (booking, payment) => {
+  try {
+    const { renterId, ownerId, productId, startDate, endDate, totalPrice, ownerAmount } = booking;
+    
+    // Get renter and owner details
+    const [renter, owner] = await Promise.all([
+      User.findById(renterId),
+      User.findById(ownerId)
+    ]);
+    
+    if (!renter || !owner) {
+      console.error('Could not find renter or owner for payment confirmation email');
+      return;
+    }
+    
+    // Format dates
+    const formattedStartDate = new Date(startDate).toLocaleDateString();
+    const formattedEndDate = new Date(endDate).toLocaleDateString();
+    
+    // Send email to renter
+    await sendEmail({
+      to: renter.email,
+      subject: 'Payment Confirmation - Your Rental is Confirmed!',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Payment Confirmation</title>
+          <style>
+            body { font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; background: #f4f4f4; margin: 0; padding: 0; }
+            .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+            .header { background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; text-align: center; }
+            .header h1 { margin: 0; font-size: 24px; }
+            .content { padding: 40px; }
+            .booking-details { background: #f0fdf4; border: 1px solid #d1fae5; border-radius: 10px; padding: 20px; margin: 20px 0; }
+            .footer { background: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; }
+            .button { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>Payment Confirmation</h1>
+              <p>Your rental is confirmed!</p>
+            </div>
+            
+            <div class="content">
+              <h2>Hello ${renter.firstName || renter.username},</h2>
+              
+              <p>Your payment of ₹${totalPrice} has been successfully processed. Your rental is now confirmed!</p>
+              
+              <div class="booking-details">
+                <h3>Booking Details:</h3>
+                <p><strong>Product:</strong> ${productId.title}</p>
+                <p><strong>Rental Period:</strong> ${formattedStartDate} to ${formattedEndDate}</p>
+                <p><strong>Owner:</strong> ${owner.firstName || owner.username}</p>
+                <p><strong>Total Amount Paid:</strong> ₹${totalPrice}</p>
+                <p><strong>Payment ID:</strong> ${payment.gatewayPaymentId}</p>
+              </div>
+              
+              <p>An invoice has been generated and is available in your account. You can also download it from the booking details page.</p>
+              
+              <p>If you have any questions about your rental, please contact us or the owner directly.</p>
+              
+              <p>Thank you for using our platform!</p>
+              
+              <p>Best regards,<br>
+              <strong>Rental Management Team</strong></p>
+            </div>
+            
+            <div class="footer">
+              <p>© ${new Date().getFullYear()} Rental Management System. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    });
+    
+    // Send email to owner
+    await sendEmail({
+      to: owner.email,
+      subject: 'New Rental Payment Received',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>New Rental Payment</title>
+          <style>
+            body { font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; background: #f4f4f4; margin: 0; padding: 0; }
+            .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+            .header { background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; text-align: center; }
+            .header h1 { margin: 0; font-size: 24px; }
+            .content { padding: 40px; }
+            .booking-details { background: #f0fdf4; border: 1px solid #d1fae5; border-radius: 10px; padding: 20px; margin: 20px 0; }
+            .footer { background: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>New Rental Payment</h1>
+              <p>You've received a payment for your rental item</p>
+            </div>
+            
+            <div class="content">
+              <h2>Hello ${owner.firstName || owner.username},</h2>
+              
+              <p>Good news! A payment of ₹${ownerAmount} (after platform fee) has been received for your rental item.</p>
+              
+              <div class="booking-details">
+                <h3>Booking Details:</h3>
+                <p><strong>Product:</strong> ${productId.title}</p>
+                <p><strong>Rental Period:</strong> ${formattedStartDate} to ${formattedEndDate}</p>
+                <p><strong>Renter:</strong> ${renter.firstName || renter.username}</p>
+                <p><strong>Total Rental Amount:</strong> ₹${totalPrice}</p>
+                <p><strong>Your Earnings (after platform fee):</strong> ₹${ownerAmount}</p>
+              </div>
+              
+              <p>Please prepare the item for pickup according to the agreed schedule. The funds will be transferred to your account after the rental is confirmed.</p>
+              
+              <p>Thank you for using our platform!</p>
+              
+              <p>Best regards,<br>
+              <strong>Rental Management Team</strong></p>
+            </div>
+            
+            <div class="footer">
+              <p>© ${new Date().getFullYear()} Rental Management System. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    });
+    
+    console.log('Payment confirmation emails sent successfully');
+  } catch (error) {
+    console.error('Error sending payment confirmation emails:', error);
+  }
+};
+
 // Handle successful payment
 const handlePaymentSuccess = async (paymentIntent) => {
   try {
@@ -72,7 +365,7 @@ const handlePaymentSuccess = async (paymentIntent) => {
       return;
     }
 
-    const booking = await Booking.findById(bookingId);
+    const booking = await Booking.findById(bookingId).populate('productId renterId ownerId');
     if (!booking) {
       console.error('Booking not found for payment:', bookingId);
       return;

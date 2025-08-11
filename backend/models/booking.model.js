@@ -33,9 +33,13 @@ const bookingSchema = new mongoose.Schema(
 
     deliveryStatus: { type: String, enum: ["pending", "out_for_delivery", "delivered"], default: "pending" },
     deliveryDate: Date,
+    deliveryOTP: { type: String },
+    deliveryOTPExpiry: { type: Date },
 
     returnStatus: { type: String, enum: ["pending", "scheduled", "completed", "late"], default: "pending" },
     returnDate: Date,
+    returnOTP: { type: String },
+    returnOTPExpiry: { type: Date },
     lateFee: { type: Number, default: 0 },
 
     platformFee: { type: Number, default: 0 },

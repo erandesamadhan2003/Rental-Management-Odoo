@@ -1,6 +1,7 @@
 import Product from "../models/product.model.js";
 import User from "../models/user.js";
 import NotificationService from "../services/notification.service.js";
+import mongoose from "mongoose";
 
 const handleError = (res, error, message = "An error occurred", status = 500) => {
   console.error(error);
@@ -149,7 +150,7 @@ export const getMyProducts = async (req, res) => {
 export const getBrowseProducts = async (req, res) => {
   try {
     const { clerkId } = req.params;
-    const { status = 'approved', q, category, brand, targetAudience } = req.query;
+    const { status = 'approved', q, category, brand, targetAudience, startDate, endDate } = req.query;
     
     const filter = { 
       ownerClerkId: { $ne: clerkId }, // Exclude current user's products
@@ -163,7 +164,41 @@ export const getBrowseProducts = async (req, res) => {
       filter.$or = [{ title: regex }, { description: regex }, { category: regex }, { brand: regex }];
     }
     
+    // Get all products matching the filter
     const products = await Product.find(filter).populate("ownerId", "username email firstName lastName");
+    
+    // If date range is provided, filter out products that are already booked for those dates
+    if (startDate && endDate) {
+      const requestedStartDate = new Date(startDate);
+      const requestedEndDate = new Date(endDate);
+      
+      // Get all bookings that overlap with the requested date range
+      const Booking = mongoose.model('Booking');
+      const overlappingBookings = await Booking.find({
+        $and: [
+          { status: { $nin: ['rejected', 'cancelled'] } },
+          { $or: [
+            // Booking starts during requested period
+            { startDate: { $gte: requestedStartDate, $lte: requestedEndDate } },
+            // Booking ends during requested period
+            { endDate: { $gte: requestedStartDate, $lte: requestedEndDate } },
+            // Booking spans the entire requested period
+            { $and: [{ startDate: { $lte: requestedStartDate } }, { endDate: { $gte: requestedEndDate } }] }
+          ]}
+        ]
+      });
+      
+      // Get IDs of products that are already booked
+      const bookedProductIds = overlappingBookings.map(booking => booking.productId.toString());
+      
+      // Filter out products that are already booked
+      const availableProducts = products.filter(product => 
+        !bookedProductIds.includes(product._id.toString())
+      );
+      
+      return res.status(200).json({ success: true, products: availableProducts });
+    }
+    
     res.status(200).json({ success: true, products });
   } catch (error) {
     handleError(res, error, "Failed to fetch browse products");

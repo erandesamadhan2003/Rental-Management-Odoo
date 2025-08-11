@@ -866,3 +866,193 @@ export const updateBookingPaymentStatus = async (req, res) => {
     });
   }
 };
+
+// Generate delivery OTP
+export const generateDeliveryOTP = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.status !== "confirmed" && booking.status !== "paid") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Booking must be confirmed to generate delivery OTP" 
+      });
+    }
+
+    // Generate 6-digit OTP
+    const deliveryOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Set OTP expiry (15 minutes from now)
+    const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    
+    booking.deliveryOTP = deliveryOTP;
+    booking.deliveryOTPExpiry = otpExpiry;
+    await booking.save();
+
+    res.json({ 
+      success: true, 
+      message: "Delivery OTP generated successfully",
+      otp: deliveryOTP // In production, this should be sent via SMS/email
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to generate delivery OTP", 
+      error: error.message 
+    });
+  }
+};
+
+// Verify delivery OTP
+export const verifyDeliveryOTP = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { otp } = req.body;
+    
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (!booking.deliveryOTP || !booking.deliveryOTPExpiry) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "No delivery OTP found. Please generate OTP first" 
+      });
+    }
+
+    if (new Date() > booking.deliveryOTPExpiry) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Delivery OTP has expired" 
+      });
+    }
+
+    if (booking.deliveryOTP !== otp) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid delivery OTP" 
+      });
+    }
+
+    // Update booking status to delivered
+    booking.status = "in_rental";
+    booking.deliveryStatus = "completed";
+    booking.deliveryDate = new Date();
+    booking.deliveryOTP = null;
+    booking.deliveryOTPExpiry = null;
+    await booking.save();
+
+    res.json({ 
+      success: true, 
+      message: "Delivery verified successfully",
+      booking 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to verify delivery OTP", 
+      error: error.message 
+    });
+  }
+};
+
+// Generate return OTP
+export const generateReturnOTP = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.status !== "in_rental") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Booking must be in rental status to generate return OTP" 
+      });
+    }
+
+    // Generate 6-digit OTP
+    const returnOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Set OTP expiry (15 minutes from now)
+    const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    
+    booking.returnOTP = returnOTP;
+    booking.returnOTPExpiry = otpExpiry;
+    await booking.save();
+
+    res.json({ 
+      success: true, 
+      message: "Return OTP generated successfully",
+      otp: returnOTP // In production, this should be sent via SMS/email
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to generate return OTP", 
+      error: error.message 
+    });
+  }
+};
+
+// Verify return OTP
+export const verifyReturnOTP = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { otp } = req.body;
+    
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (!booking.returnOTP || !booking.returnOTPExpiry) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "No return OTP found. Please generate OTP first" 
+      });
+    }
+
+    if (new Date() > booking.returnOTPExpiry) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Return OTP has expired" 
+      });
+    }
+
+    if (booking.returnOTP !== otp) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid return OTP" 
+      });
+    }
+
+    // Update booking status to completed
+    booking.status = "completed";
+    booking.returnStatus = "completed";
+    booking.returnDate = new Date();
+    booking.returnOTP = null;
+    booking.returnOTPExpiry = null;
+    await booking.save();
+
+    res.json({ 
+      success: true, 
+      message: "Return verified successfully",
+      booking 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to verify return OTP", 
+      error: error.message 
+    });
+  }
+};

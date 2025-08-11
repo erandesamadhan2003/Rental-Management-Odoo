@@ -11,7 +11,11 @@ import {
   updateBookingPaymentStatus,
   confirmPickup,
   completeBooking,
-  cancelBooking
+  cancelBooking,
+  generateDeliveryOTP,
+  verifyDeliveryOTP,
+  generateReturnOTP,
+  verifyReturnOTP
 } from "../controllers/booking.controller.js";
 
 const router = express.Router();
@@ -46,8 +50,16 @@ router.post("/:bookingId/confirm-payment", confirmBookingPayment);
 // Confirm pickup & start payout
 router.put("/:bookingId/confirm-pickup", confirmPickup);
 
-// Complete booking on return
+// Complete booking on return (legacy method)
 router.put("/:bookingId/complete", completeBooking);
+
+// Delivery OTP endpoints
+router.post("/:bookingId/delivery/generate-otp", generateDeliveryOTP);
+router.post("/:bookingId/delivery/verify-otp", verifyDeliveryOTP);
+
+// Return OTP endpoints
+router.post("/:bookingId/return/generate-otp", generateReturnOTP);
+router.post("/:bookingId/return/verify-otp", verifyReturnOTP);
 
 // Cancel booking & refund if paid
 router.put("/:bookingId/cancel", cancelBooking);
