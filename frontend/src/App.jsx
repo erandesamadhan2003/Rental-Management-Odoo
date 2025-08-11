@@ -1,6 +1,7 @@
 // App.jsx
-import { ClerkProvider, SignedIn, SignedOut } from '@clerk/clerk-react'
+import { SignedIn, SignedOut, useUser } from '@clerk/clerk-react'
 import { RouterProvider, createBrowserRouter, Navigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import './App.css'
 
 // Import your components
@@ -12,7 +13,6 @@ import Products from './components/Products'
 import Orders from './components/Orders'
 import Customers from './components/Customers'
 import Reports from './components/Reports'
-import Notifications from './components/Notifications'
 import Settings from './components/Settings'
 import ClerkUserSync from './components/ClerkUserSync'
 import RentalOrderForm from './components/RentalOrderForm'
@@ -28,13 +28,12 @@ import CustomerPortal from './components/CustomerPortal'
 import AdminDashboard from './components/admin/AdminDashboard'
 import AdminUserManagement from './components/admin/AdminUserManagement'
 import AdminProductManagement from './components/admin/AdminProductManagement'
+import Notifications from './components/Notifications'
+import Payment from './pages/Payment'
 
-
-// Environment Key
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-if (!PUBLISHABLE_KEY) {
-  throw new Error('Missing Publishable Key')
-}
+// Import Redux hooks
+import { useAuth, useNotifications } from './hooks/useRedux'
+import { getUnreadCount } from './app/features/notificationSlice'
 
 // Router Config
 const router = createBrowserRouter([
@@ -211,6 +210,14 @@ const router = createBrowserRouter([
     )
   },
   {
+    path: '/settings',
+    element: (
+      <SignedIn>
+        <Settings />
+      </SignedIn>
+    )
+  },
+  {
     path: '/notifications',
     element: (
       <SignedIn>
@@ -219,10 +226,10 @@ const router = createBrowserRouter([
     )
   },
   {
-    path: '/settings',
+    path: '/payment',
     element: (
       <SignedIn>
-        <Settings />
+        <Payment />
       </SignedIn>
     )
   },
@@ -265,13 +272,52 @@ const router = createBrowserRouter([
 ])
 
 function App() {
+  const { user } = useUser()
+  const { dispatch } = useNotifications()
+  const [lastUnreadCount, setLastUnreadCount] = useState(0)
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState('')
+
+  // Monitor notifications in real-time
+  useEffect(() => {
+    if (user?.id) {
+      // Check for new notifications every 15 seconds
+      const interval = setInterval(async () => {
+        try {
+          const result = await dispatch(getUnreadCount(user.id)).unwrap()
+          if (result > lastUnreadCount && lastUnreadCount > 0) {
+            // New notification received
+            setToastMessage(`You have ${result - lastUnreadCount} new notification${result - lastUnreadCount > 1 ? 's' : ''}!`)
+            setShowToast(true)
+            setTimeout(() => setShowToast(false), 4000) // Hide after 4 seconds
+          }
+          setLastUnreadCount(result)
+        } catch (error) {
+          console.error('Failed to check for new notifications:', error)
+        }
+      }, 15000) // Check every 15 seconds
+
+      return () => clearInterval(interval)
+    }
+  }, [user?.id, dispatch, lastUnreadCount])
+
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+    <>
       <ClerkUserSync />
       <div className="min-h-screen bg-gray-50">
         <RouterProvider router={router} />
+        
+        {/* Toast Notification */}
+        {showToast && (
+          <div className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg animate-bounce">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🔔</span>
+              <span>{toastMessage}</span>
+            </div>
+          </div>
+        )}
       </div>
-    </ClerkProvider>
+    </>
   )
 }
 

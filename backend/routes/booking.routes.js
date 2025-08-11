@@ -1,7 +1,6 @@
 import express from "express";
 import {
   createBooking,
-  createRentalRequest,
   acceptRentalRequest,
   rejectRentalRequest,
   listBookings,
@@ -22,7 +21,7 @@ router.get('/', listBookings);
 router.get('/:id', getBookingById);
 
 // Create rental request
-router.post('/rental-request', createRentalRequest);
+router.post('/', createBooking);
 
 // Owner actions on rental requests
 router.put('/:bookingId/accept', acceptRentalRequest);

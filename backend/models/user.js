@@ -28,17 +28,17 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
-  // Additional fields for rental management
-  events: [
+  // Additional fields for rental management - using actual model names
+  products: [
     {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Event',
+      ref: 'Product',
     },
   ],
-  orders: [
+  bookings: [
     {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Order',
+      ref: 'Booking',
     },
   ],
 }, {

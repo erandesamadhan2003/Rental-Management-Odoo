@@ -116,3 +116,42 @@ export const deleteNotification = async (req, res) => {
     })
   }
 }
+
+export const getUnreadCount = async (req, res) => {
+  try {
+    const { userClerkId } = req.query
+    
+    const count = await Notification.countDocuments({
+      userClerkId,
+      isRead: false
+    })
+    
+    res.json({ success: true, count })
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to get unread count', 
+      error: error.message 
+    })
+  }
+}
+
+export const createNotification = async (req, res) => {
+  try {
+    const notificationData = req.body
+    
+    const notification = new Notification(notificationData)
+    await notification.save()
+    
+    res.status(201).json({ 
+      success: true, 
+      notification 
+    })
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to create notification', 
+      error: error.message 
+    })
+  }
+}
