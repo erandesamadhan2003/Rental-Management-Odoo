@@ -20,6 +20,11 @@ import PickupOrder from './components/PickupOrder'
 import ReturnOrder from './components/ReturnOrder'
 import ProductInventory from './components/ProductInventory'
 import ProductConfiguration from './components/ProductConfiguration'
+import ProductCatalog from './components/ProductCatalog'
+import ProductDetails from './components/ProductDetails'
+import QuoteOrder from './components/QuoteOrder'
+import DeliveryManagement from './components/DeliveryManagement'
+import CustomerPortal from './components/CustomerPortal'
 
 
 // Environment Key
@@ -135,6 +140,54 @@ const router = createBrowserRouter([
     element: (
       <SignedIn>
         <ProductConfiguration />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/catalog',
+    element: (
+      <SignedIn>
+        <ProductCatalog />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/products/:productId',
+    element: (
+      <SignedIn>
+        <ProductDetails />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/quote',
+    element: (
+      <SignedIn>
+        <QuoteOrder />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/quote/:quoteId',
+    element: (
+      <SignedIn>
+        <QuoteOrder />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/delivery',
+    element: (
+      <SignedIn>
+        <DeliveryManagement />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/customer-portal',
+    element: (
+      <SignedIn>
+        <CustomerPortal />
       </SignedIn>
     )
   },
