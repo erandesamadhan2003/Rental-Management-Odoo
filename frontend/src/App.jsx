@@ -15,6 +15,11 @@ import Reports from './components/Reports'
 import Notifications from './components/Notifications'
 import Settings from './components/Settings'
 import ClerkUserSync from './components/ClerkUserSync'
+import RentalOrderForm from './components/RentalOrderForm'
+import PickupOrder from './components/PickupOrder'
+import ReturnOrder from './components/ReturnOrder'
+import ProductInventory from './components/ProductInventory'
+import ProductConfiguration from './components/ProductConfiguration'
 
 
 // Environment Key
@@ -58,6 +63,78 @@ const router = createBrowserRouter([
     element: (
       <SignedIn>
         <Orders />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/orders/new',
+    element: (
+      <SignedIn>
+        <RentalOrderForm />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/orders/:orderId',
+    element: (
+      <SignedIn>
+        <RentalOrderForm />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/pickup',
+    element: (
+      <SignedIn>
+        <PickupOrder />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/pickup/:pickupId',
+    element: (
+      <SignedIn>
+        <PickupOrder />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/return',
+    element: (
+      <SignedIn>
+        <ReturnOrder />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/return/:returnId',
+    element: (
+      <SignedIn>
+        <ReturnOrder />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/inventory',
+    element: (
+      <SignedIn>
+        <ProductInventory />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/products/configure',
+    element: (
+      <SignedIn>
+        <ProductConfiguration />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/products/configure/:productId',
+    element: (
+      <SignedIn>
+        <ProductConfiguration />
       </SignedIn>
     )
   },
