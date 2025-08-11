@@ -98,10 +98,23 @@ const startServer = async () => {
   // Initialize cron job for rental reminders
   console.log('🔄 Initializing rental reminder cron job...');
   
+  // Test email connection on startup
+  try {
+    const { testEmailConnection } = await import('./services/emailReminder.service.js');
+    await testEmailConnection();
+    console.log('✅ Email service connection verified');
+  } catch (error) {
+    console.warn('⚠️ Email service connection failed:', error.message);
+  }
+  
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
-    console.log('📧 Rental reminder emails will be sent automatically');
+    console.log('📧 Rental reminder emails will be sent automatically every 5 minutes');
+    console.log('🔗 Test reminder endpoints:');
+    console.log(`   POST http://localhost:${PORT}/api/reminders/trigger`);
+    console.log(`   GET  http://localhost:${PORT}/api/reminders/stats`);
+    console.log(`   POST http://localhost:${PORT}/api/reminders/test-email`);
   });
 };
 
