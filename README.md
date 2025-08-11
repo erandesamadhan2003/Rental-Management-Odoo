@@ -1,8 +1,3 @@
-
-ATHARVA SHRIKANT PATIL <202351014@iiitvadodara.ac.in>
-10:16 AM (0 minutes ago)
-to me
-
 # Reservelt - Rental Management
 
 ## Problem Statement
