@@ -1,6 +1,7 @@
 // App.jsx
-import { ClerkProvider, SignedIn, SignedOut } from '@clerk/clerk-react'
+import { SignedIn, SignedOut } from '@clerk/clerk-react'
 import { RouterProvider, createBrowserRouter, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import './App.css'
 
 // Import your components
@@ -12,16 +13,13 @@ import Products from './components/Products'
 import Orders from './components/Orders'
 import Customers from './components/Customers'
 import Reports from './components/Reports'
-import Notifications from './components/Notifications'
 import Settings from './components/Settings'
 import ClerkUserSync from './components/ClerkUserSync'
+import Notifications from './components/Notifications'
 
 
-// Environment Key
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-if (!PUBLISHABLE_KEY) {
-  throw new Error('Missing Publishable Key')
-}
+// Import Redux hooks
+import { useAuth } from './hooks/useRedux'
 
 // Router Config
 const router = createBrowserRouter([
@@ -78,18 +76,18 @@ const router = createBrowserRouter([
     )
   },
   {
-    path: '/notifications',
-    element: (
-      <SignedIn>
-        <Notifications />
-      </SignedIn>
-    )
-  },
-  {
     path: '/settings',
     element: (
       <SignedIn>
         <Settings />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/notifications',
+    element: (
+      <SignedIn>
+        <Notifications />
       </SignedIn>
     )
   },
@@ -109,12 +107,12 @@ const router = createBrowserRouter([
 
 function App() {
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+    <>
       <ClerkUserSync />
       <div className="min-h-screen bg-gray-50">
         <RouterProvider router={router} />
       </div>
-    </ClerkProvider>
+    </>
   )
 }
 
