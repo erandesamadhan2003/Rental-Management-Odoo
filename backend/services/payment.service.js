@@ -1,62 +1,98 @@
-// Mock payment service for testing - replace with actual Stripe integration in production
+import Stripe from 'stripe';
 
-// Mock Stripe payment intent creation
+// Initialize Stripe with secret key from environment variables
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2024-12-18.acacia',
+});
+
+// Create a payment intent with Stripe
 export const createStripePaymentIntent = async (amount, currency, bookingId, metadata) => {
-  // In production, this would call Stripe API
-  // For now, return a mock payment intent
-  return {
-    id: `pi_mock_${Date.now()}`,
-    client_secret: `pi_mock_${Date.now()}_secret_${Math.random().toString(36).substr(2, 9)}`,
-    amount: amount * 100, // Convert to cents
-    currency,
-    status: 'requires_payment_method',
-    metadata
+  try {
+    // Convert amount to cents (Stripe uses smallest currency unit)
+    const amountInCents = Math.round(amount * 100);
+    
+    // Create payment intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: currency.toLowerCase(),
+      metadata: {
+        bookingId,
+        ...metadata
+      },
+      automatic_payment_methods: {
+        enabled: true,
+      },
+    });
+    
+    return {
+      id: paymentIntent.id,
+      client_secret: paymentIntent.client_secret,
+      amount: paymentIntent.amount,
+      currency: paymentIntent.currency,
+      status: paymentIntent.status,
+      metadata: paymentIntent.metadata
+    };
+  } catch (error) {
+    console.error('Error creating Stripe payment intent:', error);
+    throw error;
   }
-}
+};
 
-// Mock Stripe payment confirmation
+// Confirm a payment with Stripe
 export const confirmStripePayment = async (paymentIntentId) => {
-  // In production, this would verify the payment with Stripe
-  // For now, return a mock successful payment
-  return {
-    id: paymentIntentId,
-    status: 'succeeded',
-    latest_charge: `ch_mock_${Date.now()}`,
-    amount: 1000, // Mock amount in cents
-    currency: 'usd'
+  try {
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    
+    // If payment intent is already succeeded, just return it
+    if (paymentIntent.status === 'succeeded') {
+      return paymentIntent;
+    }
+    
+    // Otherwise, confirm the payment (this is usually done client-side)
+    // This is a fallback for server-side confirmation
+    return await stripe.paymentIntents.confirm(paymentIntentId);
+  } catch (error) {
+    console.error('Error confirming Stripe payment:', error);
+    throw error;
   }
-}
+};
 
-// Mock Stripe transfer creation
+// Create a transfer to the owner's account
 export const createStripeTransfer = async (amount, destinationAccountId, metadata) => {
-  // In production, this would create a transfer to the owner's Stripe Connect account
-  // For now, return a mock transfer
-  return {
-    id: `tr_mock_${Date.now()}`,
-    amount: amount * 100, // Convert to cents
-    currency: 'usd',
-    destination: destinationAccountId,
-    status: 'paid',
-    metadata
+  try {
+    // Convert amount to cents
+    const amountInCents = Math.round(amount * 100);
+    
+    // Create transfer to connected account
+    const transfer = await stripe.transfers.create({
+      amount: amountInCents,
+      currency: 'inr',
+      destination: destinationAccountId,
+      metadata
+    });
+    
+    return transfer;
+  } catch (error) {
+    console.error('Error creating Stripe transfer:', error);
+    throw error;
   }
-}
+};
 
-// Mock Stripe payment refund
+// Refund a payment
 export const refundStripePayment = async (paymentIntentId, amount) => {
-  // In production, this would create a refund through Stripe
-  // For now, return a mock refund
-  return {
-    id: `re_mock_${Date.now()}`,
-    payment_intent: paymentIntentId,
-    amount: amount * 100, // Convert to cents
-    currency: 'usd',
-    status: 'succeeded'
+  try {
+    // Convert amount to cents
+    const amountInCents = amount ? Math.round(amount * 100) : undefined;
+    
+    // Create refund
+    const refund = await stripe.refunds.create({
+      payment_intent: paymentIntentId,
+      amount: amountInCents, // If undefined, refunds the full amount
+    });
+    
+    return refund;
+  } catch (error) {
+    console.error('Error refunding Stripe payment:', error);
+    throw error;
   }
-}
-
-// Note: Replace these mock functions with actual Stripe API calls in production
-// You'll need to:
-// 1. Install stripe package: npm install stripe
-// 2. Set up Stripe environment variables
-// 3. Initialize Stripe with your secret key
-// 4. Replace mock functions with actual Stripe API calls
+};

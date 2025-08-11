@@ -11,7 +11,7 @@ import {
   initiateAdminLogin,
   verifyAdminOTP
 } from '../controllers/user.controller.js'
-import { extractClerkId } from '../middlewares/authMiddlerware.js'
+import { extractClerkId } from '../middlewares/authMiddleware.js'
 
 const router = express.Router()
 

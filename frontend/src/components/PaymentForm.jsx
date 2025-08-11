@@ -1,13 +1,121 @@
 import React, { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
+import { loadStripe } from '@stripe/stripe-js'
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+
+// CheckoutForm component for Stripe Elements
+const CheckoutForm = ({ clientSecret, booking, onSuccess }) => {
+  const stripe = useStripe()
+  const elements = useElements()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+
+    if (!stripe || !elements) {
+      // Stripe.js has not loaded yet
+      return
+    }
+
+    setLoading(true)
+    setError('')
+
+    // Get a reference to the CardElement
+    const cardElement = elements.getElement(CardElement)
+
+    // Use card element with confirmCardPayment
+    const { error: paymentError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+      payment_method: {
+        card: cardElement,
+        billing_details: {
+          name: booking.renterName || 'Customer',
+        },
+      },
+    })
+
+    if (paymentError) {
+      setError(paymentError.message || 'Payment failed')
+      setLoading(false)
+      return
+    }
+
+    if (paymentIntent.status === 'succeeded') {
+      // Payment successful, confirm on backend
+      try {
+        const response = await fetch(`${API_BASE_URL}/payments/confirm`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            paymentIntentId: paymentIntent.id,
+            bookingId: booking._id
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error('Payment confirmation failed')
+        }
+
+        const data = await response.json()
+        onSuccess(data)
+      } catch (err) {
+        setError(err.message || 'Payment confirmation failed')
+      }
+    } else {
+      setError(`Payment status: ${paymentIntent.status}. Please try again.`)
+    }
+
+    setLoading(false)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="p-4 border rounded-md bg-white">
+        <CardElement
+          options={{
+            style: {
+              base: {
+                fontSize: '16px',
+                color: '#424770',
+                '::placeholder': {
+                  color: '#aab7c4',
+                },
+              },
+              invalid: {
+                color: '#9e2146',
+              },
+            },
+          }}
+        />
+      </div>
+      
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-3">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
+      
+      <button
+        type="submit"
+        disabled={!stripe || loading}
+        className="w-full px-4 py-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loading ? 'Processing Payment...' : 'Pay Now'}
+      </button>
+    </form>
+  )
+}
 
 const PaymentForm = ({ booking, onSuccess, onClose }) => {
   const { user } = useUser()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [paymentIntent, setPaymentIntent] = useState(null)
+  const [clientSecret, setClientSecret] = useState('')
 
   useEffect(() => {
     if (booking && booking._id) {
@@ -20,11 +128,16 @@ const PaymentForm = ({ booking, onSuccess, onClose }) => {
       setLoading(true)
       setError('')
       
-      const response = await fetch(`${API_BASE_URL}/bookings/${booking._id}/pay`, {
+      const response = await fetch(`${API_BASE_URL}/payments/initiate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        body: JSON.stringify({
+          bookingId: booking._id,
+          amount: booking.totalPrice,
+          currency: 'inr'
+        })
       })
 
       if (!response.ok) {
@@ -32,42 +145,9 @@ const PaymentForm = ({ booking, onSuccess, onClose }) => {
       }
 
       const data = await response.json()
-      setPaymentIntent(data)
+      setClientSecret(data.clientSecret)
     } catch (err) {
       setError(err.message || 'Failed to initiate payment')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handlePayment = async () => {
-    if (!paymentIntent) return
-
-    try {
-      setLoading(true)
-      setError('')
-
-      // In a real implementation, you would integrate with Stripe Elements here
-      // For now, we'll simulate the payment confirmation
-      const response = await fetch(`${API_BASE_URL}/bookings/${booking._id}/confirm-payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          paymentIntentId: paymentIntent.paymentIntentId
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Payment confirmation failed')
-      }
-
-      const data = await response.json()
-      alert('Payment successful! Your rental is confirmed.')
-      onSuccess(data)
-    } catch (err) {
-      setError(err.message || 'Payment failed')
     } finally {
       setLoading(false)
     }
@@ -111,7 +191,7 @@ const PaymentForm = ({ booking, onSuccess, onClose }) => {
           </div>
 
           {/* Payment Status */}
-          {loading && !paymentIntent && (
+          {loading && !clientSecret && (
             <div className="text-center py-4">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
               <p className="text-gray-600">Initializing payment...</p>
@@ -124,32 +204,22 @@ const PaymentForm = ({ booking, onSuccess, onClose }) => {
             </div>
           )}
 
-          {paymentIntent && (
+          {clientSecret && (
             <div className="space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-md p-3">
                 <p className="text-sm text-green-800">
-                  Payment ready! Amount: ₹{paymentIntent.amount / 100}
+                  Payment ready! Amount: ₹{booking.totalPrice}
                 </p>
               </div>
 
-              {/* Stripe Elements would go here in production */}
-              <div className="bg-gray-50 rounded-lg p-4 border-2 border-dashed border-gray-300">
-                <div className="text-center text-gray-500">
-                  <svg className="w-12 h-12 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
-                  <p className="text-sm">Stripe payment form would be integrated here</p>
-                  <p className="text-xs mt-1">For demo purposes, click "Pay Now" to simulate payment</p>
-                </div>
-              </div>
-
-              <button
-                onClick={handlePayment}
-                disabled={loading}
-                className="w-full px-4 py-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Processing Payment...' : 'Pay Now'}
-              </button>
+              {/* Stripe Elements integration */}
+              <Elements stripe={stripePromise} options={{ clientSecret }}>
+                <CheckoutForm 
+                  clientSecret={clientSecret} 
+                  booking={booking} 
+                  onSuccess={onSuccess} 
+                />
+              </Elements>
             </div>
           )}
 
