@@ -13,6 +13,158 @@ const generateInvoiceNumber = () => {
   return `INV-${timestamp}-${random}`;
 };
 
+// Generate Rental Agreement PDF
+export const downloadRentalAgreementPDF = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    
+    const booking = await Booking.findById(bookingId)
+      .populate('productId')
+      .populate('renterId')
+      .populate('ownerId');
+    
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+    
+    const doc = new PDFDocument({ margin: 50 });
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Rental-Agreement-${booking._id.toString().slice(-8)}.pdf"`);
+    
+    doc.pipe(res);
+    
+    // Header
+    doc.fontSize(24).font('Helvetica-Bold')
+       .text('RENTAL AGREEMENT', 50, 50, { align: 'center' });
+    
+    doc.fontSize(12).font('Helvetica')
+       .text('This agreement is entered into between the Owner and Renter for the rental of equipment/product', 50, 90, { align: 'center' });
+    
+    // Agreement Details
+    doc.fontSize(14).font('Helvetica-Bold')
+       .text('AGREEMENT DETAILS', 50, 130);
+    
+    doc.rect(50, 150, 500, 120).stroke();
+    
+    doc.fontSize(10).font('Helvetica')
+       .text(`Agreement ID: ${booking._id.toString().slice(-8).toUpperCase()}`, 60, 160)
+       .text(`Date of Agreement: ${new Date().toLocaleDateString('en-IN')}`, 60, 180)
+       .text(`Rental Period: ${new Date(booking.startDate).toLocaleDateString('en-IN')} to ${new Date(booking.endDate).toLocaleDateString('en-IN')}`, 60, 200)
+       .text(`Total Amount: ₹${booking.totalPrice}`, 60, 220)
+       .text(`Security Deposit: ₹${booking.securityDeposit || 'N/A'}`, 60, 240)
+       .text(`Payment Status: ${booking.paymentStatus?.toUpperCase() || 'PENDING'}`, 60, 260);
+    
+    // Parties Information
+    doc.fontSize(14).font('Helvetica-Bold')
+       .text('PARTY INFORMATION', 50, 300);
+    
+    // Owner Information
+    doc.fontSize(12).font('Helvetica-Bold')
+       .text('OWNER (Lessor)', 50, 330);
+    
+    doc.rect(50, 350, 240, 120).stroke();
+    
+    doc.fontSize(10).font('Helvetica')
+       .text(`Name: ${booking.ownerId?.firstName || ''} ${booking.ownerId?.lastName || 'Owner'}`, 60, 360)
+       .text(`Email: ${booking.ownerId?.email || 'N/A'}`, 60, 380)
+       .text(`Phone: ${booking.ownerId?.phone || 'N/A'}`, 60, 400)
+       .text(`Clerk ID: ${booking.ownerClerkId || 'N/A'}`, 60, 420)
+       .text(`Role: Product Owner/Lessor`, 60, 440);
+    
+    // Renter Information
+    doc.fontSize(12).font('Helvetica-Bold')
+       .text('RENTER (Lessee)', 310, 330);
+    
+    doc.rect(310, 350, 240, 120).stroke();
+    
+    doc.fontSize(10).font('Helvetica')
+       .text(`Name: ${booking.renterId?.firstName || ''} ${booking.renterId?.lastName || 'Customer'}`, 320, 360)
+       .text(`Email: ${booking.renterId?.email || 'N/A'}`, 320, 380)
+       .text(`Phone: ${booking.renterId?.phone || 'N/A'}`, 320, 400)
+       .text(`Clerk ID: ${booking.renterClerkId || 'N/A'}`, 320, 420)
+       .text(`Role: Product Renter/Lessee`, 320, 440);
+    
+    // Product Information
+    doc.fontSize(14).font('Helvetica-Bold')
+       .text('RENTAL PRODUCT DETAILS', 50, 500);
+    
+    doc.rect(50, 520, 500, 100).stroke();
+    
+    doc.fontSize(10).font('Helvetica')
+       .text(`Product Name: ${booking.productId?.name || 'N/A'}`, 60, 530)
+       .text(`Category: ${booking.productId?.category || 'N/A'}`, 60, 550)
+       .text(`Description: ${booking.productId?.description?.substring(0, 80) || 'N/A'}`, 60, 570)
+       .text(`Condition: ${booking.productId?.condition || 'N/A'}`, 60, 590)
+       .text(`Daily Rate: ₹${booking.productId?.pricePerDay || 'N/A'}`, 60, 610);
+    
+    // Terms and Conditions
+    doc.fontSize(14).font('Helvetica-Bold')
+       .text('TERMS AND CONDITIONS', 50, 650);
+    
+    const terms = [
+      '1. The Renter agrees to use the rented product in a responsible manner and return it in the same condition as received.',
+      '2. Any damage to the product during the rental period shall be the responsibility of the Renter.',
+      '3. The Renter shall pay the full rental amount as specified in this agreement.',
+      '4. Late return of the product may result in additional charges at the daily rate.',
+      '5. The security deposit (if applicable) will be refunded upon safe return of the product.',
+      '6. The Owner reserves the right to terminate this agreement in case of misuse or violation of terms.',
+      '7. Any disputes arising from this agreement shall be resolved through mutual discussion.',
+      '8. This agreement is governed by the laws of India.',
+      '9. The Renter must provide valid identification at the time of pickup.',
+      '10. Insurance and liability during the rental period are the responsibility of the Renter.'
+    ];
+    
+    let yPosition = 670;
+    terms.forEach(term => {
+      doc.fontSize(9).font('Helvetica')
+         .text(term, 50, yPosition, { width: 500, align: 'justify' });
+      yPosition += 25;
+    });
+    
+    // Add new page if needed
+    if (yPosition > 700) {
+      doc.addPage();
+      yPosition = 50;
+    }
+    
+    // Signatures
+    yPosition += 30;
+    doc.fontSize(12).font('Helvetica-Bold')
+       .text('SIGNATURES', 50, yPosition);
+    
+    yPosition += 30;
+    doc.fontSize(10).font('Helvetica')
+       .text('Owner Signature: ___________________________', 50, yPosition)
+       .text('Renter Signature: ____________________________', 300, yPosition);
+    
+    yPosition += 40;
+    doc.text('Owner Name: ___________________________', 50, yPosition)
+       .text('Renter Name: ____________________________', 300, yPosition);
+    
+    yPosition += 40;
+    doc.text('Date: _____________', 50, yPosition)
+       .text('Date: _____________', 300, yPosition);
+    
+    yPosition += 40;
+    doc.text('Witness 1: ___________________________', 50, yPosition)
+       .text('Witness 2: ____________________________', 300, yPosition);
+    
+    // Footer
+    yPosition += 60;
+    doc.fontSize(8).font('Helvetica')
+       .text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 50, yPosition)
+       .text('Rental Management System - Official Agreement', 50, yPosition + 15)
+       .text('This is a computer-generated document and is valid without physical signature when digitally acknowledged.', 50, yPosition + 30, { width: 500, align: 'center' });
+    
+    doc.end();
+    
+  } catch (error) {
+    console.error('Error generating rental agreement PDF:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate rental agreement PDF', error: error.message });
+  }
+};
+
 export const deleteInvoice = async (req, res) => {
   try {
     const invoice = await Invoice.findByIdAndDelete(req.params.id);

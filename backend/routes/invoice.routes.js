@@ -8,7 +8,8 @@ import {
   downloadInvoice,
   viewInvoice,
   downloadInvoicePDF,
-  downloadPickupDocumentPDF
+  downloadPickupDocumentPDF,
+  downloadRentalAgreementPDF
 } from '../controllers/invoice.controller.js';
 
 const router = express.Router();
@@ -20,6 +21,7 @@ router.get('/:id/download', downloadInvoice);
 router.get('/:id/view', viewInvoice);
 router.get('/booking/:bookingId/pdf', downloadInvoicePDF);
 router.get('/booking/:bookingId/pickup-document', downloadPickupDocumentPDF);
+router.get('/booking/:bookingId/rental-agreement', downloadRentalAgreementPDF);
 router.put('/:id', updateInvoice);
 router.delete('/:id', deleteInvoice);
 

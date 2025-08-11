@@ -14,6 +14,8 @@ const RentalForm = ({ product, onClose }) => {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [availability, setAvailability] = useState(null)
+  const [checkingAvailability, setCheckingAvailability] = useState(false)
 
   const calculatePrice = (startDate, endDate) => {
     if (!startDate || !endDate) return 0
@@ -21,6 +23,24 @@ const RentalForm = ({ product, onClose }) => {
     const end = new Date(endDate)
     const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
     return days * (product.pricePerDay || product.pricePerHour * 24 || 0)
+  }
+
+  const checkAvailability = async (startDate, endDate) => {
+    if (!startDate || !endDate || !product._id) return
+    
+    setCheckingAvailability(true)
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/bookings/availability/check?productId=${product._id}&startDate=${startDate}&endDate=${endDate}`
+      )
+      const data = await response.json()
+      setAvailability(data)
+    } catch (error) {
+      console.error('Error checking availability:', error)
+      setAvailability({ success: false, available: false, message: 'Failed to check availability' })
+    } finally {
+      setCheckingAvailability(false)
+    }
   }
 
   const handleInputChange = (e) => {
@@ -35,6 +55,11 @@ const RentalForm = ({ product, onClose }) => {
       const newEndDate = name === 'endDate' ? value : formData.endDate
       const price = calculatePrice(newStartDate, newEndDate)
       setFormData(prev => ({ ...prev, totalPrice: price }))
+      
+      // Check availability when both dates are selected
+      if (newStartDate && newEndDate) {
+        checkAvailability(newStartDate, newEndDate)
+      }
     }
   }
 
@@ -179,6 +204,31 @@ const RentalForm = ({ product, onClose }) => {
               )}
             </div>
 
+            {/* Availability Status */}
+            {formData.startDate && formData.endDate && (
+              <div className="rounded-lg p-4">
+                {checkingAvailability ? (
+                  <div className="flex items-center space-x-2 text-blue-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span className="text-sm">Checking availability...</span>
+                  </div>
+                ) : availability ? (
+                  <div className={`flex items-center space-x-2 ${availability.available ? 'text-green-600' : 'text-red-600'}`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {availability.available ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      )}
+                    </svg>
+                    <span className="text-sm font-medium">
+                      {availability.available ? '✅ Available for selected dates' : '❌ Not available for selected dates'}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             {/* Error Message */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -197,10 +247,20 @@ const RentalForm = ({ product, onClose }) => {
               </button>
               <button
                 type="submit"
-                disabled={loading || !formData.startDate || !formData.endDate || formData.totalPrice <= 0}
+                disabled={
+                  loading || 
+                  !formData.startDate || 
+                  !formData.endDate || 
+                  formData.totalPrice <= 0 || 
+                  checkingAvailability ||
+                  (availability && !availability.available)
+                }
                 className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Sending...' : 'Send Rental Request'}
+                {loading ? 'Sending...' : 
+                 checkingAvailability ? 'Checking...' :
+                 (availability && !availability.available) ? 'Not Available' :
+                 'Send Rental Request'}
               </button>
             </div>
           </form>

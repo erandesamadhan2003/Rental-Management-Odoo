@@ -686,22 +686,40 @@ const Notifications = () => {
         );
       case "payment_confirmation":
         return (
-          <button
-            onClick={() => {
-              const bookingId = notification.metadata?.bookingId;
-              if (bookingId) {
-                window.open(`http://localhost:3000/api/invoices/booking/${bookingId}/pickup-document`, '_blank');
-              } else {
-                alert('Booking ID not found for pickup document');
-              }
-            }}
-            className="text-sm text-white font-medium bg-purple-600 hover:bg-purple-700 hover:shadow-lg hover:scale-105 px-4 py-2.5 rounded-xl transition-all duration-200 transform flex items-center space-x-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <span>Download Pickup Document</span>
-          </button>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => {
+                const bookingId = notification.metadata?.bookingId;
+                if (bookingId) {
+                  window.open(`http://localhost:3000/api/invoices/booking/${bookingId}/pickup-document`, '_blank');
+                } else {
+                  alert('Booking ID not found for pickup document');
+                }
+              }}
+              className="text-sm text-white font-medium bg-purple-600 hover:bg-purple-700 hover:shadow-lg hover:scale-105 px-3 py-2 rounded-xl transition-all duration-200 transform flex items-center space-x-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Pickup Doc</span>
+            </button>
+            <button
+              onClick={() => {
+                const bookingId = notification.metadata?.bookingId;
+                if (bookingId) {
+                  window.open(`http://localhost:3000/api/invoices/booking/${bookingId}/rental-agreement`, '_blank');
+                } else {
+                  alert('Booking ID not found for rental agreement');
+                }
+              }}
+              className="text-sm text-white font-medium bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg hover:scale-105 px-3 py-2 rounded-xl transition-all duration-200 transform flex items-center space-x-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Agreement</span>
+            </button>
+          </div>
         );
       default:
         return null;

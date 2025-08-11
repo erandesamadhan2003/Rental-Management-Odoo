@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import Navbar from './Navbar'
 import axios from 'axios'
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
+
 const ProductDetails = () => {
   const navigate = useNavigate()
   const { productId } = useParams()
@@ -21,7 +23,7 @@ const ProductDetails = () => {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const response = await axios.get(`/api/products/${productId}`)
+        const response = await axios.get(`${API_BASE_URL}/products/${productId}`)
         if (response.data.success) {
           setProduct(response.data.product)
         }
@@ -42,11 +44,11 @@ const ProductDetails = () => {
       
       setIsCheckingAvailability(true)
       try {
-        const response = await axios.get(`/api/products/${productId}?startDate=${startDate}&endDate=${endDate}`)
-        if (response.data.success && response.data.availability) {
+        const response = await axios.get(`${API_BASE_URL}/bookings/availability/check?productId=${productId}&startDate=${startDate}&endDate=${endDate}`)
+        if (response.data.success) {
           setAvailabilityStatus({
-            isAvailable: response.data.availability.isAvailable,
-            requestedDates: response.data.availability.requestedDates
+            isAvailable: response.data.available,
+            requestedDates: { startDate, endDate }
           })
           
           if (!response.data.availability.isAvailable) {

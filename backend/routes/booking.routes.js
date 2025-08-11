@@ -15,10 +15,14 @@ import {
   generateDeliveryOTP,
   verifyDeliveryOTP,
   generateReturnOTP,
-  verifyReturnOTP
+  verifyReturnOTP,
+  checkProductAvailability
 } from "../controllers/booking.controller.js";
 
 const router = express.Router();
+
+// Check product availability
+router.get('/availability/check', checkProductAvailability);
 
 // List bookings
 router.get('/', listBookings);

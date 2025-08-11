@@ -8,6 +8,54 @@ import { sendEmail, generateOTP, sendDeliveryReturnOTP } from '../services/email
 import { createInvoiceForBooking } from './invoice.controller.js';
 import mongoose from "mongoose";
 
+// Check product availability for specific dates
+export const checkProductAvailability = async (req, res) => {
+  try {
+    const { productId, startDate, endDate } = req.query;
+    
+    if (!productId || !startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product ID, start date, and end date are required'
+      });
+    }
+    
+    const requestStart = new Date(startDate);
+    const requestEnd = new Date(endDate);
+    
+    // Check for overlapping bookings that are confirmed or paid
+    const overlappingBookings = await Booking.find({
+      productId: productId,
+      status: { $in: ['confirmed', 'paid', 'accepted'] },
+      paymentStatus: { $in: ['paid', 'confirmed'] },
+      $or: [
+        {
+          startDate: { $lte: requestEnd },
+          endDate: { $gte: requestStart }
+        }
+      ]
+    });
+    
+    const isAvailable = overlappingBookings.length === 0;
+    
+    res.json({
+      success: true,
+      available: isAvailable,
+      conflictingBookings: overlappingBookings.length,
+      message: isAvailable 
+        ? 'Product is available for the selected dates' 
+        : 'Product is not available for the selected dates'
+    });
+  } catch (error) {
+    console.error('Error checking product availability:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check product availability',
+      error: error.message
+    });
+  }
+};
+
 // Calculate platform fee (10% default) and owner amount
 const calculateAmounts = (totalPrice) => {
   const platformFee = Math.round(totalPrice * 0.1); // 10%
@@ -1114,18 +1162,101 @@ export const updateBookingPaymentStatus = async (req, res) => {
       console.error('Failed to create invoice:', invoiceError);
     }
 
-    // Notify owner that payment is received
+    // Notify owner that payment is received (in-site notification)
     try {
-      await NotificationService.createPaymentConfirmationNotification({
-        userId: booking.ownerId._id,
-        userClerkId: booking.ownerClerkId,
+      await NotificationService.createPaymentConfirmationPickupNotification({
+        ownerId: booking.ownerId._id,
+        ownerClerkId: booking.ownerClerkId,
+        renterName: `${booking.renterId?.firstName || ''} ${booking.renterId?.lastName || ''}`.trim() || 'Customer',
+        productTitle: booking.productId?.title || booking.productId?.name || 'Product',
         amount: booking.totalPrice,
-        method: paymentMethod || 'card',
-        bookingId: booking._id,
-        productTitle: booking.productId?.title || 'Product'
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        bookingId: booking._id
       });
+      console.log('Payment confirmation pickup notification sent to owner');
     } catch (notificationError) {
       console.error('Failed to create payment notification:', notificationError);
+    }
+
+    // Send email notification to owner
+    try {
+      const ownerEmail = booking.ownerId?.email;
+      const renterName = `${booking.renterId?.firstName || ''} ${booking.renterId?.lastName || ''}`.trim() || 'Customer';
+      const productName = booking.productId?.title || booking.productId?.name || 'Product';
+      const pickupDate = new Date(booking.startDate).toLocaleDateString('en-IN');
+      const returnDate = new Date(booking.endDate).toLocaleDateString('en-IN');
+
+      if (ownerEmail) {
+        await sendEmail({
+          to: ownerEmail,
+          subject: `🎉 Payment Received - Prepare for Pickup | ${productName}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h1 style="margin: 0; font-size: 28px;">💰 Payment Received!</h1>
+                <p style="margin: 10px 0 0; font-size: 16px; opacity: 0.9;">Your rental item has been paid for</p>
+              </div>
+              
+              <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
+                <div style="background: white; padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                  <h2 style="color: #333; margin-top: 0; margin-bottom: 20px;">📋 Rental Details</h2>
+                  <div style="border-left: 4px solid #28a745; padding-left: 15px; margin-bottom: 15px;">
+                    <p style="margin: 5px 0;"><strong>Product:</strong> ${productName}</p>
+                    <p style="margin: 5px 0;"><strong>Renter:</strong> ${renterName}</p>
+                    <p style="margin: 5px 0;"><strong>Amount Paid:</strong> ₹${booking.totalPrice}</p>
+                    <p style="margin: 5px 0;"><strong>Pickup Date:</strong> ${pickupDate}</p>
+                    <p style="margin: 5px 0;"><strong>Return Date:</strong> ${returnDate}</p>
+                    <p style="margin: 5px 0;"><strong>Booking ID:</strong> ${booking._id.toString().slice(-8).toUpperCase()}</p>
+                  </div>
+                </div>
+
+                <div style="background: white; padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                  <h3 style="color: #333; margin-top: 0;">📦 Next Steps</h3>
+                  <ul style="color: #666; line-height: 1.6;">
+                    <li>Prepare your item for pickup on <strong>${pickupDate}</strong></li>
+                    <li>Download the pickup document for reference</li>
+                    <li>Verify renter's identity during pickup</li>
+                    <li>Inspect the item condition together</li>
+                    <li>Keep the pickup document for your records</li>
+                  </ul>
+                </div>
+
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="http://localhost:5173/notifications" 
+                     style="background: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; margin: 10px;">
+                    📱 View Notifications
+                  </a>
+                  <a href="http://localhost:3000/api/invoices/booking/${booking._id}/pickup-document" 
+                     style="background: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; margin: 10px;">
+                    📄 Download Pickup Document
+                  </a>
+                </div>
+
+                <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; border-left: 4px solid #2196f3;">
+                  <h4 style="color: #1976d2; margin-top: 0;">💡 Important Reminders</h4>
+                  <p style="color: #666; margin-bottom: 0; line-height: 1.5;">
+                    • Please be available during the pickup time<br>
+                    • Bring a valid ID for verification<br>
+                    • Contact the renter if you need to reschedule<br>
+                    • Report any issues immediately through the platform
+                  </p>
+                </div>
+
+                <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+                  <p style="color: #888; font-size: 14px; margin: 0;">
+                    Thank you for using Rental Management System!<br>
+                    <a href="mailto:support@rentalmanagement.com" style="color: #007bff;">Contact Support</a> if you need assistance.
+                  </p>
+                </div>
+              </div>
+            </div>
+          `
+        });
+        console.log('Payment confirmation email sent to owner:', ownerEmail);
+      }
+    } catch (emailError) {
+      console.error('Failed to send email notification to owner:', emailError);
     }
 
     // Send email notifications
