@@ -27,9 +27,9 @@ const Payment = () => {
     }
   }, [bookingId, dispatch, navigate])
 
-  const handlePaymentSuccess = () => {
-    // Navigate to orders or dashboard after successful payment
-    navigate('/orders?status=paid')
+  const handlePaymentSuccess = (data) => {
+    // Navigate to payment status page with success status
+    navigate(`/payment-status?status=succeeded&bookingId=${booking._id}&payment_intent=${data.payment?.gatewayPaymentId || 'completed'}`)
   }
 
   const handleClose = () => {

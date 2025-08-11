@@ -33,6 +33,8 @@ import AdminUserManagement from './components/admin/AdminUserManagement'
 import AdminProductManagement from './components/admin/AdminProductManagement'
 import Notifications from './components/Notifications'
 import PaymentPage from './components/PaymentPage'
+import Payment from './pages/Payment'
+import PaymentStatus from './pages/PaymentStatus'
 import PaymentSuccessPage from './components/PaymentSuccessPage'
 import AnimationDemo from './pages/AnimationDemo'
 
@@ -244,6 +246,22 @@ const router = createBrowserRouter([
   },
   {
     path: '/payment',
+    element: (
+      <SignedIn>
+        <Payment />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/payment-status',
+    element: (
+      <SignedIn>
+        <PaymentStatus />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/payment-page',
     element: (
       <SignedIn>
         <PaymentPage />

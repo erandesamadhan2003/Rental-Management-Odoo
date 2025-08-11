@@ -9,11 +9,11 @@ router.get("/", getAllPayments);
 // Get single payment
 router.get("/:paymentId", getPaymentById);
 
-// Initiate payment
-router.post("/initiate", initiatePayment);
+// Initiate payment for a booking
+router.post("/initiate/:id", initiatePayment);
 
-// Confirm payment
-router.post("/confirm", confirmPayment);
+// Confirm payment for a booking  
+router.post("/confirm/:id", confirmPayment);
 
 // Stripe webhook for payment confirmations
 router.post("/webhook/stripe", express.raw({ type: 'application/json' }), handleStripeWebhook);
