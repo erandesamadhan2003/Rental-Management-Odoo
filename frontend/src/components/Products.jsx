@@ -2,20 +2,20 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import Navbar from './Navbar'
 import { useProducts } from '../hooks/useRedux'
-import { getProducts, createProduct, updateProduct, deleteProduct, setFilters, clearFilters } from '../app/features/productSlice'
+import { getMyProducts, createProduct, updateProduct, deleteProduct, setFilters, clearFilters } from '../app/features/productSlice'
 
 const Products = () => {
   const { user } = useUser()
   const { 
-    products: productsFromState, 
+    myProducts: productsFromState, 
     selectedProduct, 
-    isLoading, 
-    error, 
+    myProductsLoading: isLoading, 
+    myProductsError: error, 
     filters,
     dispatch 
   } = useProducts()
   
-  // Ensure products is always an array
+  // Ensure products is always an array and filter to show only user's products
   const products = Array.isArray(productsFromState) ? productsFromState : []
   
   // UI state
@@ -37,8 +37,10 @@ const Products = () => {
 
   // Load products on component mount
   useEffect(() => {
-    dispatch(getProducts())
-  }, [dispatch])
+    if (user?.id) {
+      dispatch(getMyProducts({ clerkId: user.id }))
+    }
+  }, [dispatch, user?.id])
 
   // Constants for dropdowns
   const CATEGORIES = ['Sports', 'Badminton', 'Cricket', 'Football', 'Cycling', 'Photography', 'Music', 'Camping', 'Tools', 'Electronics']
@@ -231,7 +233,7 @@ const Products = () => {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">Products</h1>
+              <h1 className="text-3xl font-bold text-gray-800">My Products</h1>
               <p className="text-gray-600 mt-1">Manage your rental equipment inventory</p>
             </div>
             <div className="flex gap-3">
@@ -545,84 +547,83 @@ const Products = () => {
 
 // Product Card Component for Grid View
 const ProductCard = ({ product, onEdit, onDelete, getProductName, getProductPrice, getAvailabilityStatus }) => {
-  const getRentalPeriodText = (product) => {
-    if (product.pricePerHour) return 'hour'
-    if (product.pricePerDay) return 'day'
-    if (product.pricePerWeek) return 'week'
-    return 'day'
-  }
+  const isAvailable = getAvailabilityStatus(product) === 'available'
 
   return (
-    <div className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow group">
-      <div className="relative">
-        <img
-          src={product.images?.[0] || '/placeholder-image.jpg'}
-          alt={getProductName(product)}
-          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-        />
-        <div className="absolute top-2 right-2">
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-            getAvailabilityStatus(product) === 'available' 
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
+      {/* Status Badge */}
+      <div className="relative p-4 pb-2">
+        <div className="flex justify-between items-start mb-3">
+          <div className="w-8 h-8 border-2 border-gray-300 rounded"></div>
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+            isAvailable 
               ? 'bg-green-100 text-green-800' 
               : 'bg-red-100 text-red-800'
           }`}>
-            {getAvailabilityStatus(product)}
+            {isAvailable ? 'approved' : 'unavailable'}
           </span>
         </div>
+
+        {/* Product Image/Icon */}
+        <div className="flex justify-center mb-4">
+          {product.images && product.images.length > 0 ? (
+            <img 
+              src={product.images[0]} 
+              alt={getProductName(product)}
+              className="w-16 h-16 object-cover rounded-lg"
+            />
+          ) : (
+            <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </div>
+          )}
+        </div>
+
+        {/* Category */}
+        <p className="text-center text-gray-600 text-sm mb-2">
+          {product.category || 'Rental - Equipment'}
+        </p>
       </div>
-      
-      <div className="p-4">
-        <div className="flex justify-between items-start mb-2">
-          <h3 className="text-lg font-semibold text-gray-800 line-clamp-1">{getProductName(product)}</h3>
-          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-            {product.category}
-          </span>
-        </div>
+
+      {/* Product Details */}
+      <div className="px-4 pb-4">
+        <h3 className="text-xl font-bold text-gray-900 mb-2 text-center">
+          {getProductName(product)}
+        </h3>
         
-        <p className="text-gray-600 text-sm mb-3 line-clamp-2">{product.description || 'No description available'}</p>
-        
-        <div className="flex justify-between items-center mb-3">
+        <p className="text-center text-gray-600 text-sm mb-4">
+          {product.category || 'Rental - Equipment'} • {product.description && product.description.length > 50 
+            ? `${product.description.substring(0, 50)}...` 
+            : product.description || 'High quality rentable item.'}
+        </p>
+
+        {/* Price and Owner */}
+        <div className="flex justify-between items-center mb-4">
           <div>
-            <span className="text-2xl font-bold text-blue-600">
-              ${getProductPrice(product)}
-            </span>
-            <span className="text-sm text-gray-500">/{getRentalPeriodText(product)}</span>
+            <p className="text-sm text-gray-500">Daily Rate</p>
+            <p className="text-2xl font-bold text-gray-900">₹{getProductPrice(product)}</p>
           </div>
-          <div className="text-right text-sm text-gray-500">
-            <div>{product.brand}</div>
-            <div>{product.targetAudience}</div>
+          <div className="text-right">
+            <p className="text-sm text-gray-500">Owner</p>
+            <p className="font-medium text-gray-900">{product.brand || 'You'}</p>
           </div>
         </div>
 
-        {product.tags && product.tags.length > 0 && (
-          <div className="mb-3">
-            <div className="flex flex-wrap gap-1">
-              {product.tags.slice(0, 3).map((tag, index) => (
-                <span key={index} className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded">
-                  {tag}
-                </span>
-              ))}
-              {product.tags.length > 3 && (
-                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
-                  +{product.tags.length - 3} more
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-        
+        {/* Action Buttons */}
         <div className="flex gap-2">
           <button
             onClick={() => onEdit(product)}
-            className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="flex-1 py-2 px-4 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg font-medium transition-colors"
           >
-            ✏️ Edit
+            Edit
           </button>
           <button
             onClick={() => onDelete(product._id || product.id)}
-            className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="flex-1 py-2 px-4 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg font-medium transition-colors"
           >
-            🗑️ Delete
+            Delete
           </button>
         </div>
       </div>

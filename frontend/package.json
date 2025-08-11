@@ -11,12 +11,15 @@
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.40.0",
+    "@clerk/clerk-sdk-node": "^4.13.23",
     "@reduxjs/toolkit": "^2.8.2",
     "@splinetool/react-spline": "^4.1.0",
     "axios": "^1.11.0",
+    "lucide-react": "^0.539.0",
     "node-cron": "^4.2.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-hot-toast": "^2.5.2",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.8.0",
     "redux-persist": "^6.0.0"

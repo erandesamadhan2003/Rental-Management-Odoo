@@ -122,6 +122,54 @@ export const getAllProducts = async (req, res) => {
   }
 };
 
+// Get user's own products
+export const getMyProducts = async (req, res) => {
+  try {
+    const { clerkId } = req.params;
+    const { status = 'approved', q, category, brand, targetAudience } = req.query;
+    
+    const filter = { ownerClerkId: clerkId };
+    if (status) filter.status = status;
+    if (category) filter.category = category;
+    if (brand) filter.brand = brand;
+    if (targetAudience) filter.targetAudience = targetAudience;
+    if (q) {
+      const regex = new RegExp(q, 'i');
+      filter.$or = [{ title: regex }, { description: regex }, { category: regex }, { brand: regex }];
+    }
+    
+    const products = await Product.find(filter).populate("ownerId", "username email firstName lastName");
+    res.status(200).json({ success: true, products });
+  } catch (error) {
+    handleError(res, error, "Failed to fetch user products");
+  }
+};
+
+// Get other users' products (exclude current user's products)
+export const getBrowseProducts = async (req, res) => {
+  try {
+    const { clerkId } = req.params;
+    const { status = 'approved', q, category, brand, targetAudience } = req.query;
+    
+    const filter = { 
+      ownerClerkId: { $ne: clerkId }, // Exclude current user's products
+      status: status
+    };
+    if (category) filter.category = category;
+    if (brand) filter.brand = brand;
+    if (targetAudience) filter.targetAudience = targetAudience;
+    if (q) {
+      const regex = new RegExp(q, 'i');
+      filter.$or = [{ title: regex }, { description: regex }, { category: regex }, { brand: regex }];
+    }
+    
+    const products = await Product.find(filter).populate("ownerId", "username email firstName lastName");
+    res.status(200).json({ success: true, products });
+  } catch (error) {
+    handleError(res, error, "Failed to fetch browse products");
+  }
+};
+
 // Get product by ID
 export const getProductById = async (req, res) => {
   try {

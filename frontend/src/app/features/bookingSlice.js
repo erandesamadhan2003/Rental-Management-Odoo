@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 
 // API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
 
 // Helper function for API calls
 const makeApiCall = async (url, options = {}) => {
@@ -68,6 +68,21 @@ export const createBooking = createAsyncThunk(
   }
 )
 
+export const createRentalRequest = createAsyncThunk(
+  'bookings/createRentalRequest',
+  async (rentalData, { rejectWithValue }) => {
+    try {
+      const data = await makeApiCall('/bookings/rental-request', {
+        method: 'POST',
+        body: JSON.stringify(rentalData),
+      })
+      return data.booking || data
+    } catch (error) {
+      return rejectWithValue(error.message)
+    }
+  }
+)
+
 export const updateBooking = createAsyncThunk(
   'bookings/updateBooking',
   async ({ bookingId, bookingData }, { rejectWithValue }) => {
@@ -111,10 +126,11 @@ export const getUserBookings = createAsyncThunk(
 
 export const acceptRentalRequest = createAsyncThunk(
   'bookings/acceptRentalRequest',
-  async (bookingId, { rejectWithValue }) => {
+  async ({ bookingId, ownerClerkId }, { rejectWithValue }) => {
     try {
       const data = await makeApiCall(`/bookings/${bookingId}/accept`, {
         method: 'POST',
+        body: JSON.stringify({ ownerClerkId }),
       })
       return data.booking || data
     } catch (error) {
@@ -125,12 +141,32 @@ export const acceptRentalRequest = createAsyncThunk(
 
 export const rejectRentalRequest = createAsyncThunk(
   'bookings/rejectRentalRequest',
-  async (bookingId, { rejectWithValue }) => {
+  async ({ bookingId, ownerClerkId, reason }, { rejectWithValue }) => {
     try {
       const data = await makeApiCall(`/bookings/${bookingId}/reject`, {
         method: 'POST',
+        body: JSON.stringify({ ownerClerkId, reason }),
       })
       return data.booking || data
+    } catch (error) {
+      return rejectWithValue(error.message)
+    }
+  }
+)
+
+export const updateBookingPaymentStatus = createAsyncThunk(
+  'bookings/updateBookingPaymentStatus',
+  async ({ bookingId, paymentStatus, paymentMethod, paymentData }, { rejectWithValue }) => {
+    try {
+      const data = await makeApiCall(`/bookings/${bookingId}/payment`, {
+        method: 'POST',
+        body: JSON.stringify({ 
+          paymentStatus, 
+          paymentMethod, 
+          paymentData 
+        }),
+      })
+      return data
     } catch (error) {
       return rejectWithValue(error.message)
     }
@@ -222,6 +258,21 @@ const bookingSlice = createSlice({
         state.error = null
       })
       .addCase(createBooking.rejected, (state, action) => {
+        state.isLoading = false
+        state.error = action.payload
+      })
+
+      // Create Rental Request
+      .addCase(createRentalRequest.pending, (state) => {
+        state.isLoading = true
+        state.error = null
+      })
+      .addCase(createRentalRequest.fulfilled, (state, action) => {
+        state.isLoading = false
+        state.bookings.push(action.payload)
+        state.error = null
+      })
+      .addCase(createRentalRequest.rejected, (state, action) => {
         state.isLoading = false
         state.error = action.payload
       })
@@ -326,6 +377,32 @@ const bookingSlice = createSlice({
         state.error = null
       })
       .addCase(rejectRentalRequest.rejected, (state, action) => {
+        state.isLoading = false
+        state.error = action.payload
+      })
+
+      // Update Booking Payment Status
+      .addCase(updateBookingPaymentStatus.pending, (state) => {
+        state.isLoading = true
+        state.error = null
+      })
+      .addCase(updateBookingPaymentStatus.fulfilled, (state, action) => {
+        state.isLoading = false
+        const booking = action.payload.booking
+        const index = state.bookings.findIndex(b => b._id === booking._id)
+        if (index !== -1) {
+          state.bookings[index] = booking
+        }
+        const userIndex = state.userBookings.findIndex(b => b._id === booking._id)
+        if (userIndex !== -1) {
+          state.userBookings[userIndex] = booking
+        }
+        if (state.selectedBooking && state.selectedBooking._id === booking._id) {
+          state.selectedBooking = booking
+        }
+        state.error = null
+      })
+      .addCase(updateBookingPaymentStatus.rejected, (state, action) => {
         state.isLoading = false
         state.error = action.payload
       })

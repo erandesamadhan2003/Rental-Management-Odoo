@@ -1,81 +1,219 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../Navbar'
 
 const AdminDashboard = () => {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('overview')
-
-  // Sample admin data
-  const [adminStats] = useState({
-    totalUsers: 1247,
-    totalOrders: 3456,
-    totalRevenue: 87450,
-    totalProducts: 245,
-    pendingOrders: 23,
-    activeRentals: 156,
-    overduedReturns: 8,
-    lowStockItems: 12
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  
+  // Dynamic state for admin data
+  const [adminStats, setAdminStats] = useState({
+    totalUsers: 0,
+    totalOrders: 0,
+    totalRevenue: 0,
+    totalProducts: 0,
+    pendingOrders: 0,
+    activeRentals: 0,
+    overduedReturns: 0,
+    lowStockItems: 0
   })
 
-  const [recentOrders] = useState([
-    {
-      id: 'R-2025-001',
-      customer: 'John Smith',
-      amount: 350,
-      status: 'active',
-      date: '2025-01-10',
-      items: 2
-    },
-    {
-      id: 'R-2025-002',
-      customer: 'Sarah Wilson',
-      amount: 275,
-      status: 'pending',
-      date: '2025-01-11',
-      items: 3
-    },
-    {
-      id: 'R-2025-003',
-      customer: 'Mike Johnson',
-      amount: 420,
-      status: 'completed',
-      date: '2025-01-11',
-      items: 1
-    }
-  ])
+  const [recentOrders, setRecentOrders] = useState([])
+  const [systemAlerts, setSystemAlerts] = useState([])
+  const [topProducts, setTopProducts] = useState([])
+  const [adminInfo, setAdminInfo] = useState(null)
 
-  const [systemAlerts] = useState([
-    {
-      id: 1,
-      type: 'warning',
-      title: 'Low Stock Alert',
-      message: '12 items are running low on stock',
-      time: '2 hours ago'
-    },
-    {
-      id: 2,
-      type: 'error',
-      title: 'Overdue Returns',
-      message: '8 rentals are overdue for return',
-      time: '4 hours ago'
-    },
-    {
-      id: 3,
-      type: 'info',
-      title: 'New User Registration',
-      message: '15 new users registered today',
-      time: '6 hours ago'
-    }
-  ])
+  // Fetch admin dashboard data
+  useEffect(() => {
+    const fetchAdminData = async () => {
+      try {
+        setLoading(true)
+        
+        // Get admin session info
+        const adminSession = localStorage.getItem('adminSession')
+        if (adminSession) {
+          setAdminInfo(JSON.parse(adminSession))
+        }
 
-  const [topProducts] = useState([
-    { name: 'Professional Camera', rentals: 45, revenue: 2250 },
-    { name: 'Sound System', rentals: 38, revenue: 2850 },
-    { name: 'Party Tent', rentals: 32, revenue: 3840 },
-    { name: 'DJ Equipment', rentals: 28, revenue: 2520 },
-    { name: 'Projector', rentals: 25, revenue: 1000 }
-  ])
+        // Fetch dashboard statistics
+        const [usersRes, ordersRes, productsRes, notificationsRes] = await Promise.all([
+          fetch('http://localhost:3000/api/users'),
+          fetch('http://localhost:3000/api/bookings'),
+          fetch('http://localhost:3000/api/products'),
+          fetch('http://localhost:3000/api/notifications')
+        ])
+
+        const [users, orders, products, notifications] = await Promise.all([
+          usersRes.json(),
+          ordersRes.json(),
+          productsRes.json(),
+          notificationsRes.json()
+        ])
+
+        // Calculate statistics
+        const totalUsers = users.users?.length || 0
+        const totalOrders = orders.bookings?.length || 0
+        const totalProducts = products.products?.length || 0
+        
+        // Calculate revenue from completed orders
+        const completedOrders = orders.bookings?.filter(order => order.status === 'completed') || []
+        const totalRevenue = completedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0)
+        
+        // Calculate other metrics
+        const pendingOrders = orders.bookings?.filter(order => order.status === 'pending')?.length || 0
+        const activeRentals = orders.bookings?.filter(order => order.status === 'active')?.length || 0
+        const overduedReturns = orders.bookings?.filter(order => {
+          if (!order.returnDate) return false
+          return new Date(order.returnDate) < new Date() && order.status === 'active'
+        })?.length || 0
+
+        // Count low stock items (products with quantity < 5)
+        const lowStockItems = products.products?.filter(product => (product.quantity || 0) < 5)?.length || 0
+
+        setAdminStats({
+          totalUsers,
+          totalOrders,
+          totalRevenue,
+          totalProducts,
+          pendingOrders,
+          activeRentals,
+          overduedReturns,
+          lowStockItems
+        })
+
+        // Set recent orders (last 5)
+        const sortedOrders = orders.bookings?.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) || []
+        setRecentOrders(sortedOrders.slice(0, 5))
+
+        // Create system alerts based on data
+        const alerts = []
+        if (lowStockItems > 0) {
+          alerts.push({
+            id: 1,
+            type: 'warning',
+            title: 'Low Stock Alert',
+            message: `${lowStockItems} items are running low on stock`,
+            time: 'Now'
+          })
+        }
+        if (overduedReturns > 0) {
+          alerts.push({
+            id: 2,
+            type: 'error',
+            title: 'Overdue Returns',
+            message: `${overduedReturns} rentals are overdue for return`,
+            time: 'Now'
+          })
+        }
+        if (pendingOrders > 0) {
+          alerts.push({
+            id: 3,
+            type: 'info',
+            title: 'Pending Orders',
+            message: `${pendingOrders} orders are pending approval`,
+            time: 'Now'
+          })
+        }
+        
+        // Add new user registrations alert (users created today)
+        const today = new Date().toDateString()
+        const newUsersToday = users.users?.filter(user => 
+          new Date(user.createdAt).toDateString() === today
+        )?.length || 0
+        
+        if (newUsersToday > 0) {
+          alerts.push({
+            id: 4,
+            type: 'success',
+            title: 'New Registrations',
+            message: `${newUsersToday} new users registered today`,
+            time: 'Today'
+          })
+        }
+
+        setSystemAlerts(alerts)
+
+        // Calculate top products by rental count
+        const productStats = {}
+        orders.bookings?.forEach(order => {
+          if (order.productId && order.status !== 'cancelled') {
+            const productId = order.productId._id || order.productId
+            const productName = order.productId.name || 'Unknown Product'
+            const amount = order.totalAmount || 0
+            
+            if (!productStats[productId]) {
+              productStats[productId] = {
+                name: productName,
+                rentals: 0,
+                revenue: 0
+              }
+            }
+            productStats[productId].rentals += 1
+            productStats[productId].revenue += amount
+          }
+        })
+
+        const topProductsList = Object.values(productStats)
+          .sort((a, b) => b.rentals - a.rentals)
+          .slice(0, 5)
+
+        setTopProducts(topProductsList)
+
+      } catch (error) {
+        console.error('Error fetching admin data:', error)
+        setError('Failed to load dashboard data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAdminData()
+  }, [])
+
+  // Logout function
+  const handleLogout = () => {
+    localStorage.removeItem('adminSession')
+    navigate('/admin-login')
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-red-600 border-t-transparent mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading admin dashboard...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="bg-red-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <h2 className="text-xl font-bold text-red-800 mb-2">Error Loading Dashboard</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const getStatusColor = (status) => {
     switch(status) {
@@ -635,6 +773,40 @@ const AdminDashboard = () => {
       <Navbar />
       
       <div className="container mx-auto px-6 py-8">
+        {/* Admin Header */}
+        <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="bg-white/20 p-3 rounded-full">
+                <span className="text-2xl">👑</span>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">
+                  Admin Dashboard
+                </h1>
+                <p className="text-red-100">
+                  Welcome back, {adminInfo?.firstName || 'Administrator'}! 
+                  <span className="ml-2 text-sm">({adminInfo?.email})</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="text-right text-white">
+                <p className="text-sm text-red-100">Session Active</p>
+                <p className="text-xs text-red-200">
+                  Since {adminInfo?.loginTime ? new Date(adminInfo.loginTime).toLocaleTimeString() : 'N/A'}
+                </p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors border border-white/30"
+              >
+                🚪 Logout
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-md border border-purple-200">
           {/* Header */}
           <div className="border-b border-purple-200 p-6">

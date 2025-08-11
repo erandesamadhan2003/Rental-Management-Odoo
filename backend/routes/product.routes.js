@@ -4,6 +4,8 @@ import path from 'path'
 import {
   createProduct,
   getAllProducts,
+  getMyProducts,
+  getBrowseProducts,
   getProductById,
   updateProduct,
   deleteProduct,
@@ -19,6 +21,8 @@ const upload = multer({ storage: multer.memoryStorage() })
 
 // Public
 router.get("/", getAllProducts);
+router.get("/my/:clerkId", getMyProducts);
+router.get("/browse/:clerkId", getBrowseProducts);
 router.get("/:id", getProductById);
 
 // Upload images to Cloudinary

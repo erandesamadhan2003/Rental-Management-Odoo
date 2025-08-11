@@ -1,12 +1,14 @@
 import express from "express";
 import {
   createBooking,
+  createRentalRequest,
   acceptRentalRequest,
   rejectRentalRequest,
   listBookings,
   getBookingById,
   initiateBookingPayment,
   confirmBookingPayment,
+  updateBookingPaymentStatus,
   confirmPickup,
   completeBooking,
   cancelBooking
@@ -20,15 +22,20 @@ router.get('/', listBookings);
 // Get booking by ID
 router.get('/:id', getBookingById);
 
-// Create rental request
-router.post('/', createBooking);
-
-// Owner actions on rental requests
-router.put('/:bookingId/accept', acceptRentalRequest);
-router.put('/:bookingId/reject', rejectRentalRequest);
+// Create rental request with automatic pricing
+router.post('/rental-request', createRentalRequest);
 
 // Create booking
 router.post("/", createBooking);
+
+// Accept rental request (owner action)
+router.post("/:bookingId/accept", acceptRentalRequest);
+
+// Reject rental request (owner action)
+router.post("/:bookingId/reject", rejectRentalRequest);
+
+// Update payment status (simple payment completion)
+router.post("/:bookingId/payment", updateBookingPaymentStatus);
 
 // Start payment for a booking
 router.post("/:bookingId/pay", initiateBookingPayment);

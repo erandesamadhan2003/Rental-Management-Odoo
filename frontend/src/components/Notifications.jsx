@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import Navbar from './Navbar'
 import { useNotifications } from '../hooks/useRedux'
@@ -7,6 +8,7 @@ import { acceptRentalRequest, rejectRentalRequest } from '../app/features/bookin
 
 const Notifications = () => {
   const { user } = useUser()
+  const navigate = useNavigate()
   const { 
     notifications, 
     unreadCount, 
@@ -145,13 +147,15 @@ const Notifications = () => {
   const getNotificationStyle = (type, isRead) => {
     const styles = {
       rental_request: { icon: '🏠', color: 'blue', bgColor: 'bg-blue-50' },
+      rental_accepted: { icon: '✅', color: 'green', bgColor: 'bg-green-50' },
+      rental_rejected: { icon: '❌', color: 'red', bgColor: 'bg-red-50' },
       payment: { icon: '💳', color: 'green', bgColor: 'bg-green-50' },
+      payment_confirmation: { icon: '✅', color: 'green', bgColor: 'bg-green-50' },
       pickup_scheduled: { icon: '📅', color: 'orange', bgColor: 'bg-orange-50' },
       drop_scheduled: { icon: '📍', color: 'purple', bgColor: 'bg-purple-50' },
       reminder: { icon: '⏰', color: 'yellow', bgColor: 'bg-yellow-50' },
       system: { icon: '⚙️', color: 'gray', bgColor: 'bg-gray-50' },
       promotion: { icon: '🎉', color: 'pink', bgColor: 'bg-pink-50' },
-      payment_confirmation: { icon: '✅', color: 'green', bgColor: 'bg-green-50' },
       due_payment: { icon: '⚠️', color: 'red', bgColor: 'bg-red-50' },
       default: { icon: '📬', color: 'gray', bgColor: 'bg-gray-50' }
     }
@@ -388,6 +392,7 @@ const Notifications = () => {
                 onShowDetails={() => setShowDetails(notification)}
                 formatTimeAgo={formatTimeAgo}
                 getNotificationStyle={getNotificationStyle}
+                renderNotificationActions={renderNotificationActions}
               />
             ))}
           </div>
@@ -470,6 +475,106 @@ const Notifications = () => {
       )}
     </div>
   )
+
+  // Render notification actions (moved inside component to access isLoading, dispatch, etc.)
+  function renderNotificationActions(notification) {
+    const handleAcceptRental = async () => {
+      try {
+        if (notification.metadata?.bookingId) {
+          await dispatch(acceptRentalRequest({
+            bookingId: notification.metadata.bookingId,
+            ownerClerkId: user.id
+          }))
+          // Mark notification as read after action
+          await dispatch(markAsRead(notification._id))
+          // Refresh notifications to get the latest state
+          dispatch(getNotifications({ 
+            userClerkId: user.id, 
+            page: 1, 
+            limit: 20 
+          }))
+          // Also refresh unread count
+          dispatch(getUnreadCount(user.id))
+        }
+      } catch (error) {
+        console.error('Error accepting rental request:', error)
+      }
+    }
+
+    const handleRejectRental = async () => {
+      try {
+        if (notification.metadata?.bookingId) {
+          await dispatch(rejectRentalRequest({
+            bookingId: notification.metadata.bookingId,
+            ownerClerkId: user.id,
+            reason: 'Rejected by owner'
+          }))
+          // Mark notification as read after action
+          await dispatch(markAsRead(notification._id))
+          // Refresh notifications to get the latest state
+          dispatch(getNotifications({ 
+            userClerkId: user.id, 
+            page: 1, 
+            limit: 20 
+          }))
+          // Also refresh unread count
+          dispatch(getUnreadCount(user.id))
+        }
+      } catch (error) {
+        console.error('Error rejecting rental request:', error)
+      }
+    }
+
+    const handlePayNow = () => {
+      // Navigate to payment page
+      if (notification.metadata?.bookingId) {
+        navigate(`/payment?bookingId=${notification.metadata.bookingId}`)
+      }
+    }
+
+    // Add specific action buttons based on notification type
+    switch (notification.type) {
+      case 'rental_request':
+        return (
+          <>
+            <button 
+              onClick={handleAcceptRental}
+              className="text-xs text-green-600 hover:text-green-800 font-medium bg-green-50 hover:bg-green-100 px-2 py-1 rounded transition-colors"
+              disabled={isLoading}
+            >
+              Accept
+            </button>
+            <button 
+              onClick={handleRejectRental}
+              className="text-xs text-red-600 hover:text-red-800 font-medium bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition-colors"
+              disabled={isLoading}
+            >
+              Decline
+            </button>
+          </>
+        )
+      case 'rental_accepted':
+        return (
+          <button 
+            onClick={handlePayNow}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
+          >
+            Pay Now
+          </button>
+        )
+      case 'due_payment':
+        return (
+          <button 
+            onClick={handlePayNow}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
+          >
+            Pay Now
+          </button>
+        )
+      default:
+        return null
+    }
+  }
 }
 
 // Notification Card Component
@@ -481,7 +586,8 @@ const NotificationCard = ({
   onDelete, 
   onShowDetails,
   formatTimeAgo,
-  getNotificationStyle 
+  getNotificationStyle,
+  renderNotificationActions
 }) => {
   const style = getNotificationStyle(notification.type, notification.isRead)
   
@@ -672,13 +778,15 @@ const NotificationDetailsModal = ({
 const getNotificationTitle = (notification) => {
   const titles = {
     rental_request: 'New Rental Request',
+    rental_accepted: 'Rental Request Accepted',
+    rental_rejected: 'Rental Request Declined',
     payment: 'Payment Notification',
+    payment_confirmation: 'Payment Confirmed',
     pickup_scheduled: 'Pickup Scheduled',
     drop_scheduled: 'Drop-off Scheduled',
     reminder: 'Reminder',
     system: 'System Notification',
     promotion: 'Special Offer',
-    payment_confirmation: 'Payment Confirmed',
     due_payment: 'Payment Due'
   }
   return titles[notification.type] || 'Notification'
@@ -733,94 +841,6 @@ const renderDetailedMetadata = (notification) => {
       ))}
     </dl>
   )
-}
-
-const renderNotificationActions = (notification) => {
-  const handleAcceptRental = async () => {
-    try {
-      if (notification.metadata?.bookingId) {
-        await dispatch(acceptRentalRequest(notification.metadata.bookingId))
-        // Mark notification as read after action
-        await dispatch(markAsRead(notification._id))
-        // Refresh notifications to get the latest state
-        dispatch(getNotifications({ 
-          userId: user.id, 
-          page: currentPage, 
-          limit: 10 
-        }))
-      }
-    } catch (error) {
-      console.error('Error accepting rental request:', error)
-    }
-  }
-
-  const handleRejectRental = async () => {
-    try {
-      if (notification.metadata?.bookingId) {
-        await dispatch(rejectRentalRequest(notification.metadata.bookingId))
-        // Mark notification as read after action
-        await dispatch(markAsRead(notification._id))
-        // Refresh notifications to get the latest state
-        dispatch(getNotifications({ 
-          userId: user.id, 
-          page: currentPage, 
-          limit: 10 
-        }))
-      }
-    } catch (error) {
-      console.error('Error rejecting rental request:', error)
-    }
-  }
-
-  const handlePayNow = () => {
-    // Navigate to payment page
-    if (notification.metadata?.bookingId) {
-      window.location.href = `/payment?bookingId=${notification.metadata.bookingId}`
-    }
-  }
-
-  // Add specific action buttons based on notification type
-  switch (notification.type) {
-    case 'rental_request':
-      return (
-        <>
-          <button 
-            onClick={handleAcceptRental}
-            className="text-xs text-green-600 hover:text-green-800 font-medium bg-green-50 hover:bg-green-100 px-2 py-1 rounded transition-colors"
-            disabled={isLoading}
-          >
-            Accept
-          </button>
-          <button 
-            onClick={handleRejectRental}
-            className="text-xs text-red-600 hover:text-red-800 font-medium bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition-colors"
-            disabled={isLoading}
-          >
-            Decline
-          </button>
-        </>
-      )
-    case 'rental_accepted':
-      return (
-        <button 
-          onClick={handlePayNow}
-          className="text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
-        >
-          Pay Now
-        </button>
-      )
-    case 'due_payment':
-      return (
-        <button 
-          onClick={handlePayNow}
-          className="text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
-        >
-          Pay Now
-        </button>
-      )
-    default:
-      return null
-  }
 }
 
 export default Notifications

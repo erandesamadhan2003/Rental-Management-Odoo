@@ -1,9 +1,11 @@
 import Booking from "../models/booking.model.js";
 import Payment from "../models/payment.model.js";
+import User from "../models/user.js";
 import Notification from "../models/notification.model.js";
 import NotificationService from "../services/notification.service.js";
 import { createStripePaymentIntent, confirmStripePayment, createStripeTransfer, refundStripePayment } from "../services/payment.service.js";
 import { sendEmail } from '../services/email.service.js';
+import { createInvoiceForBooking } from './invoice.controller.js';
 
 // Calculate platform fee (10% default) and owner amount
 const calculateAmounts = (totalPrice) => {
@@ -80,44 +82,120 @@ export const listBookings = async (req, res) => {
   }
 };
 
-// Create rental request (status: pending, paymentStatus: unpaid)
+// Create rental request with automatic pricing calculation
 export const createRentalRequest = async (req, res) => {
   try {
-    const { productId, renterId, renterClerkId, ownerId, ownerClerkId, startDate, endDate, totalPrice, pickupLocation, dropLocation } = req.body;
+    const { 
+      productId, 
+      productTitle,
+      ownerClerkId, 
+      renterClerkId, 
+      startDate, 
+      endDate, 
+      notes,
+      pricing 
+    } = req.body;
 
-    const { platformFee, ownerAmount } = calculateAmounts(totalPrice);
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
+    if (start < today) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Start date cannot be in the past" 
+      });
+    }
+
+    if (start >= end) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "End date must be after start date" 
+      });
+    }
+
+    // Find renter and owner
+    const [renter, owner] = await Promise.all([
+      User.findOne({ clerkId: renterClerkId }),
+      User.findOne({ clerkId: ownerClerkId })
+    ]);
+
+    if (!renter || !owner) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "User not found" 
+      });
+    }
+
+    // Calculate platform fee and owner amount
+    const { platformFee, ownerAmount } = calculateAmounts(pricing.total);
+
+    // Create booking with pending approval status
     const booking = await Booking.create({
       productId,
-      renterId,
+      renterId: renter._id,
       renterClerkId,
-      ownerId,
+      ownerId: owner._id,
       ownerClerkId,
-      startDate,
-      endDate,
-      totalPrice,
+      startDate: start,
+      endDate: end,
+      totalPrice: pricing.total,
       platformFee,
       ownerAmount,
-      status: "pending",
+      status: "requested",
       paymentStatus: "unpaid",
-      pickupLocation,
-      dropLocation
+      notes: notes || ''
     });
 
-    // Create notification for owner
-    await Notification.create({
-      userId: ownerId,
-      userClerkId: ownerClerkId,
-      type: "rental_request",
-      message: `New rental request for your product`,
-      relatedId: booking._id,
-      relatedType: "booking",
-      metadata: { renterId, renterClerkId, productId }
-    });
+    // Create notification for owner about rental request
+    try {
+      await NotificationService.createRentalRequestNotification({
+        renterId: renterClerkId,
+        ownerId: ownerClerkId,
+        productId,
+        productTitle: productTitle || 'Product',
+        startDate: startDate,
+        endDate: endDate,
+        totalAmount: pricing.total,
+        bookingId: booking._id
+      });
+    } catch (notificationError) {
+      console.error('Failed to create rental request notification:', notificationError);
+    }
 
-    res.status(201).json({ success: true, booking });
+    // Send email notification to owner
+    try {
+      await sendEmail({
+        to: owner.email,
+        subject: `New Rental Request for ${productTitle}`,
+        html: `
+          <h2>New Rental Request</h2>
+          <p>You have received a new rental request for your product: <strong>${productTitle}</strong></p>
+          <p><strong>Renter:</strong> ${renter.firstName} ${renter.lastName}</p>
+          <p><strong>Duration:</strong> ${start.toDateString()} to ${end.toDateString()}</p>
+          <p><strong>Total Amount:</strong> ₹${pricing.total.toFixed(2)}</p>
+          ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
+          <p>Please log in to your dashboard to approve or reject this request.</p>
+        `
+      });
+    } catch (emailError) {
+      console.error('Failed to send email notification:', emailError);
+    }
+
+    res.status(201).json({ 
+      success: true, 
+      message: "Rental request sent successfully. The owner will be notified.",
+      booking 
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to create rental request", error: error.message });
+    console.error('Create rental request error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to create rental request", 
+      error: error.message 
+    });
   }
 };
 
@@ -188,20 +266,38 @@ export const acceptRentalRequest = async (req, res) => {
     booking.status = "pending_payment";
     await booking.save();
 
+    // Create invoice for the approved booking
+    let invoice = null;
+    try {
+      invoice = await createInvoiceForBooking(booking._id);
+    } catch (invoiceError) {
+      console.error('Failed to create invoice:', invoiceError);
+      // Don't fail the approval if invoice creation fails
+    }
+
     // Notify renter that request was accepted and payment is needed
     try {
-      await NotificationService.createRentalAcceptanceNotification({
+      console.log('Creating acceptance notification for booking:', booking._id)
+      const acceptanceNotification = await NotificationService.createRentalAcceptanceNotification({
         renterId: booking.renterClerkId,
         ownerId: booking.ownerClerkId,
         productTitle: booking.productId?.title || 'Product',
         bookingId: booking._id,
-        totalAmount: booking.totalPrice
+        totalAmount: booking.totalPrice,
+        invoiceId: invoice?._id
       });
+      console.log('Acceptance notification created:', acceptanceNotification?._id)
     } catch (notificationError) {
       console.error('Failed to create acceptance notification:', notificationError);
+      // Continue execution even if notification fails
     }
 
-    res.json({ success: true, message: "Rental request accepted", booking });
+    res.json({ 
+      success: true, 
+      message: "Rental request accepted. Invoice has been generated.", 
+      booking,
+      invoice 
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to accept rental request", error: error.message });
   }
@@ -233,14 +329,17 @@ export const rejectRentalRequest = async (req, res) => {
 
     // Notify renter that request was rejected
     try {
-      await NotificationService.createRentalRejectionNotification({
+      console.log('Creating rejection notification for booking:', booking._id)
+      const rejectionNotification = await NotificationService.createRentalRejectionNotification({
         renterId: booking.renterClerkId,
         ownerId: booking.ownerClerkId,
         productTitle: booking.productId?.title || 'Product',
         bookingId: booking._id
       });
+      console.log('Rejection notification created:', rejectionNotification?._id)
     } catch (notificationError) {
       console.error('Failed to create rejection notification:', notificationError);
+      // Continue execution even if notification fails
     }
 
     res.json({ success: true, message: "Rental request rejected", booking });
@@ -496,5 +595,113 @@ export const cancelBooking = async (req, res) => {
     res.json({ success: true, message: "Booking cancelled (no payment to refund)" });
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to cancel booking", error: error.message });
+  }
+};
+
+// Update booking payment status (simple payment completion)
+export const updateBookingPaymentStatus = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { paymentStatus, paymentMethod, paymentData } = req.body;
+
+    const booking = await Booking.findById(bookingId)
+      .populate('productId', 'title')
+      .populate('renterId', 'username email firstName lastName')
+      .populate('ownerId', 'username email firstName lastName');
+      
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.status !== "pending_payment") {
+      return res.status(400).json({ success: false, message: "Booking is not ready for payment" });
+    }
+
+    // Update booking status
+    booking.status = "paid";
+    booking.paymentStatus = paymentStatus;
+    await booking.save();
+
+    // Create payment record
+    const payment = await Payment.create({
+      bookingId,
+      renterId: booking.renterId._id,
+      renterClerkId: booking.renterClerkId,
+      amount: booking.totalPrice,
+      platformFee: booking.platformFee,
+      ownerAmount: booking.ownerAmount,
+      method: paymentMethod || 'card',
+      status: 'completed',
+      transactionId: paymentData?.transactionId || `TXN_${Date.now()}`,
+      metadata: paymentData || {}
+    });
+
+    // Create invoice for the payment
+    let invoice = null;
+    try {
+      invoice = await createInvoiceForBooking(booking._id);
+    } catch (invoiceError) {
+      console.error('Failed to create invoice:', invoiceError);
+    }
+
+    // Notify owner that payment is received
+    try {
+      await NotificationService.createPaymentConfirmationNotification({
+        userId: booking.ownerId._id,
+        userClerkId: booking.ownerClerkId,
+        amount: booking.totalPrice,
+        method: paymentMethod || 'card',
+        bookingId: booking._id,
+        productTitle: booking.productId?.title || 'Product'
+      });
+    } catch (notificationError) {
+      console.error('Failed to create payment notification:', notificationError);
+    }
+
+    // Send email notifications
+    try {
+      // Email to renter
+      await sendEmail({
+        to: booking.renterId.email,
+        subject: `Payment Confirmation - ${booking.productId?.title}`,
+        html: `
+          <h2>Payment Confirmed!</h2>
+          <p>Your payment for <strong>${booking.productId?.title}</strong> has been processed successfully.</p>
+          <p><strong>Amount Paid:</strong> ₹${booking.totalPrice.toFixed(2)}</p>
+          <p><strong>Booking ID:</strong> ${booking._id}</p>
+          <p>The owner has been notified and will contact you soon with pickup/delivery details.</p>
+        `
+      });
+
+      // Email to owner
+      await sendEmail({
+        to: booking.ownerId.email,
+        subject: `Payment Received - ${booking.productId?.title}`,
+        html: `
+          <h2>Payment Received!</h2>
+          <p>Payment for your product <strong>${booking.productId?.title}</strong> has been received.</p>
+          <p><strong>Amount:</strong> ₹${booking.ownerAmount.toFixed(2)} (after platform fee)</p>
+          <p><strong>Renter:</strong> ${booking.renterId.firstName} ${booking.renterId.lastName}</p>
+          <p><strong>Rental Period:</strong> ${booking.startDate.toDateString()} to ${booking.endDate.toDateString()}</p>
+          <p>Please prepare the item and contact the renter for pickup/delivery arrangements.</p>
+        `
+      });
+    } catch (emailError) {
+      console.error('Failed to send emails:', emailError);
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Payment completed successfully", 
+      booking,
+      payment,
+      invoiceId: invoice?._id
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to update payment status", 
+      error: error.message 
+    });
   }
 };

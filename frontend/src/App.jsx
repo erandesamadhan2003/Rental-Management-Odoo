@@ -8,8 +8,11 @@ import './App.css'
 import Home from './components/Home'
 import SignInPage from './components/auth/SignInPage'
 import SignUpPage from './components/auth/SignUpPage'
+import AdminLoginPage from './components/auth/AdminLoginPage'
+import AdminRoute from './components/auth/AdminRoute'
 import Dashboard from './components/Dashboard'
 import Products from './components/Products'
+import BrowseProducts from './components/BrowseProducts'
 import Orders from './components/Orders'
 import Customers from './components/Customers'
 import Reports from './components/Reports'
@@ -29,7 +32,8 @@ import AdminDashboard from './components/admin/AdminDashboard'
 import AdminUserManagement from './components/admin/AdminUserManagement'
 import AdminProductManagement from './components/admin/AdminProductManagement'
 import Notifications from './components/Notifications'
-import Payment from './pages/Payment'
+import PaymentPage from './components/PaymentPage'
+import PaymentSuccessPage from './components/PaymentSuccessPage'
 
 // Import Redux hooks
 import { useAuth, useNotifications } from './hooks/useRedux'
@@ -50,6 +54,10 @@ const router = createBrowserRouter([
     element: <SignUpPage />
   },
   {
+    path: '/admin-login',
+    element: <AdminLoginPage />
+  },
+  {
     path: '/dashboard',
     element: (
       <SignedIn>
@@ -62,6 +70,14 @@ const router = createBrowserRouter([
     element: (
       <SignedIn>
         <Products />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/browse-products',
+    element: (
+      <SignedIn>
+        <BrowseProducts />
       </SignedIn>
     )
   },
@@ -229,32 +245,40 @@ const router = createBrowserRouter([
     path: '/payment',
     element: (
       <SignedIn>
-        <Payment />
+        <PaymentPage />
+      </SignedIn>
+    )
+  },
+  {
+    path: '/payment-success',
+    element: (
+      <SignedIn>
+        <PaymentSuccessPage />
       </SignedIn>
     )
   },
   {
     path: '/admin',
     element: (
-      <SignedIn>
+      <AdminRoute>
         <AdminDashboard />
-      </SignedIn>
+      </AdminRoute>
     )
   },
   {
     path: '/admin/users',
     element: (
-      <SignedIn>
+      <AdminRoute>
         <AdminUserManagement />
-      </SignedIn>
+      </AdminRoute>
     )
   },
   {
     path: '/admin/products',
     element: (
-      <SignedIn>
+      <AdminRoute>
         <AdminProductManagement />
-      </SignedIn>
+      </AdminRoute>
     )
   },
   {

@@ -28,6 +28,20 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  role: {
+    type: String,
+    enum: ['customer', 'admin'],
+    default: 'customer',
+  },
+  // Admin OTP fields for secure login
+  adminOtp: {
+    type: String,
+    default: undefined,
+  },
+  adminOtpExpiry: {
+    type: Date,
+    default: undefined,
+  },
   // Additional fields for rental management - using actual model names
   products: [
     {

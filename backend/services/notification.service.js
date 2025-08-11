@@ -9,11 +9,18 @@ class NotificationService {
     try {
       const { renterId, ownerId, productId, productTitle, startDate, endDate, totalAmount, bookingId } = bookingData
       
+      console.log('Creating rental request notification for:', { renterId, ownerId, productTitle, bookingId })
+      
       // Get user details
       const renter = await User.findOne({ clerkId: renterId })
       const owner = await User.findOne({ clerkId: ownerId })
       
-      if (!owner) return
+      console.log('Found users:', { renter: !!renter, owner: !!owner })
+      
+      if (!owner) {
+        console.error('Owner not found with clerkId:', ownerId)
+        return
+      }
       
       const notification = new Notification({
         userId: owner._id,
@@ -36,10 +43,12 @@ class NotificationService {
         }
       })
       
-      await notification.save()
-      return notification
+      const savedNotification = await notification.save()
+      console.log('Rental request notification created:', savedNotification._id)
+      return savedNotification
     } catch (error) {
       console.error('Error creating rental request notification:', error)
+      throw error
     }
   }
   
@@ -75,11 +84,18 @@ class NotificationService {
     try {
       const { renterId, ownerId, productTitle, bookingId, totalAmount } = bookingData
       
+      console.log('Creating rental acceptance notification for:', { renterId, ownerId, productTitle, bookingId })
+      
       // Get user details
       const renter = await User.findOne({ clerkId: renterId })
       const owner = await User.findOne({ clerkId: ownerId })
       
-      if (!renter) return
+      console.log('Found users:', { renter: !!renter, owner: !!owner })
+      
+      if (!renter) {
+        console.error('Renter not found with clerkId:', renterId)
+        return
+      }
       
       const notification = new Notification({
         userId: renter._id,
@@ -99,10 +115,12 @@ class NotificationService {
         }
       })
       
-      await notification.save()
-      return notification
+      const savedNotification = await notification.save()
+      console.log('Rental acceptance notification created:', savedNotification._id)
+      return savedNotification
     } catch (error) {
       console.error('Error creating rental acceptance notification:', error)
+      throw error
     }
   }
 
@@ -111,11 +129,18 @@ class NotificationService {
     try {
       const { renterId, ownerId, productTitle, bookingId } = bookingData
       
+      console.log('Creating rental rejection notification for:', { renterId, ownerId, productTitle, bookingId })
+      
       // Get user details
       const renter = await User.findOne({ clerkId: renterId })
       const owner = await User.findOne({ clerkId: ownerId })
       
-      if (!renter) return
+      console.log('Found users:', { renter: !!renter, owner: !!owner })
+      
+      if (!renter) {
+        console.error('Renter not found with clerkId:', renterId)
+        return
+      }
       
       const notification = new Notification({
         userId: renter._id,
@@ -132,10 +157,12 @@ class NotificationService {
         }
       })
       
-      await notification.save()
-      return notification
+      const savedNotification = await notification.save()
+      console.log('Rental rejection notification created:', savedNotification._id)
+      return savedNotification
     } catch (error) {
       console.error('Error creating rental rejection notification:', error)
+      throw error
     }
   }
   
