@@ -590,7 +590,7 @@ const Notifications = () => {
       // Check payment status before navigating
       if (notification.metadata?.bookingId) {
         try {
-          const response = await fetch(`http://localhost:5000/api/bookings/${notification.metadata.bookingId}`);
+          const response = await fetch(`http://localhost:3000/api/bookings/${notification.metadata.bookingId}`);
           const data = await response.json();
           
           if (data.success && data.booking) {
@@ -616,7 +616,7 @@ const Notifications = () => {
       const checkPaymentStatus = async () => {
         if (notification.metadata?.bookingId && (notification.type === 'rental_accepted' || notification.type === 'due_payment')) {
           try {
-            const response = await fetch(`http://localhost:5000/api/bookings/${notification.metadata.bookingId}`);
+            const response = await fetch(`http://localhost:3000/api/bookings/${notification.metadata.bookingId}`);
             const data = await response.json();
             
             if (data.success && data.booking) {
@@ -690,7 +690,7 @@ const Notifications = () => {
             onClick={() => {
               const bookingId = notification.metadata?.bookingId;
               if (bookingId) {
-                window.open(`http://localhost:5000/api/invoices/booking/${bookingId}/pickup-document`, '_blank');
+                window.open(`http://localhost:3000/api/invoices/booking/${bookingId}/pickup-document`, '_blank');
               } else {
                 alert('Booking ID not found for pickup document');
               }

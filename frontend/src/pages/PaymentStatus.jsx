@@ -348,7 +348,7 @@ const PaymentStatus = () => {
                     onClick={() => {
                       const bookingId = paymentData?.booking?._id || searchParams.get('bookingId');
                       if (bookingId) {
-                        window.open(`http://localhost:5000/api/invoices/booking/${bookingId}/pdf`, '_blank');
+                        window.open(`http://localhost:3000/api/invoices/booking/${bookingId}/pdf`, '_blank');
                       } else {
                         alert('Booking ID not found for invoice download');
                       }
