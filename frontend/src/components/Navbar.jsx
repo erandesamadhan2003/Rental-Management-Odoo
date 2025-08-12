@@ -111,14 +111,22 @@ const Navbar = () => {
           <div className="flex items-center space-x-8">
             <Link 
               to="/" 
-              className="flex items-center space-x-2 transition-all duration-300 hover-lift cursor-pointer"
+              className="flex items-center space-x-3 transition-all duration-300 hover-lift cursor-pointer"
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center animate-pulse-soft">
-                <span className="text-white font-bold text-sm">R</span>
+              <div className="flex items-center space-x-2">
+                <img 
+                  src="/thu umage.png" 
+                  alt="Company Logo"
+                  className="h-10 w-auto object-contain"
+                  onError={(e) => {
+                    // Fallback to existing image.png if thu umage.png doesn't exist
+                    e.target.src = "/image.png"
+                  }}
+                />
+                <span className="text-xl font-bold text-gray-800 transition-colors duration-300 hover:text-emerald-600"></span>
               </div>
-              <span className="text-xl font-bold text-gray-800 transition-colors duration-300 hover:text-emerald-600">Reservelt</span>
             </Link>
             
             {/* Navigation Menu - Desktop (icons with tooltips) */}
