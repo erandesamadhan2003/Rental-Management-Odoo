@@ -16,6 +16,7 @@ import invoiceReducer from './features/invoiceSlice'
 import pricelistReducer from './features/pricelistSlice'
 import reviewReducer from './features/reviewSlice'
 import uiReducer from './features/uiSlice'
+import adminReducer from './features/adminSlice'
 
 // Persist configuration
 const persistConfig = {
@@ -38,6 +39,7 @@ const rootReducer = combineReducers({
   pricelists: pricelistReducer,
   reviews: reviewReducer,
   ui: uiReducer,
+  admin: adminReducer,
 })
 
 // Create persisted reducer

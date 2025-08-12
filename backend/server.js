@@ -23,6 +23,7 @@ import testRoutes from './routes/test.routes.js';
 
 // Import cron job service
 import rentalReminderCron from './services/rentalReminder.cron.js';
+import { initializeDeadlineMonitoring } from './controllers/booking.controller.js';
 
 // Load environment variables
 dotenv.config();
@@ -150,6 +151,10 @@ const startServer = async () => {
   // Initialize cron job for rental reminders
   console.log('🔄 Initializing rental reminder cron job...');
   
+  // Initialize deadline monitoring system
+  console.log('⏰ Initializing deadline monitoring system...');
+  initializeDeadlineMonitoring();
+  
   // Test email connection on startup
   try {
     const { testEmailConnection } = await import('./services/emailReminder.service.js');
@@ -163,6 +168,7 @@ const startServer = async () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
     console.log('📧 Rental reminder emails will be sent automatically every 5 minutes');
+    console.log('⏰ Deadline monitoring active - checking overdue rentals every 30 minutes');
     console.log('🔗 Test reminder endpoints:');
     console.log(`   POST http://localhost:${PORT}/api/reminders/trigger`);
     console.log(`   GET  http://localhost:${PORT}/api/reminders/stats`);

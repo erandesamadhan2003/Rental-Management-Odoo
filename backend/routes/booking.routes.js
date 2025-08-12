@@ -16,7 +16,8 @@ import {
   verifyDeliveryOTP,
   generateReturnOTP,
   verifyReturnOTP,
-  checkProductAvailability
+  checkProductAvailability,
+  checkAndProcessOverdueRentals
 } from "../controllers/booking.controller.js";
 
 const router = express.Router();
@@ -67,5 +68,15 @@ router.post("/:bookingId/return/verify-otp", verifyReturnOTP);
 
 // Cancel booking & refund if paid
 router.put("/:bookingId/cancel", cancelBooking);
+
+// Manual deadline check (for testing)
+router.post("/check-overdue", async (req, res) => {
+  try {
+    await checkAndProcessOverdueRentals();
+    res.json({ success: true, message: "Overdue rental check completed" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error checking overdue rentals", error: error.message });
+  }
+});
 
 export default router;

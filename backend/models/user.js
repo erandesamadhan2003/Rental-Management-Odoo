@@ -55,6 +55,16 @@ const userSchema = new mongoose.Schema({
       ref: 'Booking',
     },
   ],
+  // Stripe account for receiving payments as an owner
+  stripeAccountId: {
+    type: String,
+    default: null
+  },
+  stripeAccountStatus: {
+    type: String,
+    enum: ['pending', 'verified', 'rejected'],
+    default: 'pending'
+  },
 }, {
   timestamps: true,
 })

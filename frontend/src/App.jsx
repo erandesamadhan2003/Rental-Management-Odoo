@@ -14,6 +14,7 @@ import Dashboard from './components/Dashboard'
 import Products from './components/Products'
 import BrowseProducts from './components/BrowseProducts'
 import Orders from './components/Orders'
+import BookingDetails from './components/BookingDetails'
 import Customers from './components/Customers'
 import Reports from './components/Reports'
 import Settings from './components/Settings'
@@ -29,8 +30,11 @@ import QuoteOrder from './components/QuoteOrder'
 import DeliveryManagement from './components/DeliveryManagement'
 import CustomerPortal from './components/CustomerPortal'
 import AdminDashboard from './components/admin/AdminDashboard'
+import AdminDashboardRedux from './components/admin/AdminDashboardRedux'
 import AdminUserManagement from './components/admin/AdminUserManagement'
 import AdminProductManagement from './components/admin/AdminProductManagement'
+import AdminProductManagementRedux from './components/admin/AdminProductManagementRedux'
+import AdminOrderManagementRedux from './components/admin/AdminOrderManagementRedux'
 import Notifications from './components/Notifications'
 import PaymentPage from './components/PaymentPage'
 import Payment from './pages/Payment'
@@ -104,7 +108,7 @@ const router = createBrowserRouter([
     path: '/orders/:orderId',
     element: (
       <SignedIn>
-        <RentalOrderForm />
+        <BookingDetails />
       </SignedIn>
     )
   },
@@ -288,7 +292,7 @@ const router = createBrowserRouter([
     path: '/admin',
     element: (
       <AdminRoute>
-        <AdminDashboard />
+        <AdminDashboardRedux />
       </AdminRoute>
     )
   },
@@ -304,7 +308,15 @@ const router = createBrowserRouter([
     path: '/admin/products',
     element: (
       <AdminRoute>
-        <AdminProductManagement />
+        <AdminProductManagementRedux />
+      </AdminRoute>
+    )
+  },
+  {
+    path: '/admin/orders',
+    element: (
+      <AdminRoute>
+        <AdminOrderManagementRedux />
       </AdminRoute>
     )
   },

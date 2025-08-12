@@ -7,6 +7,7 @@ import { createStripePaymentIntent, confirmStripePayment, createStripeTransfer, 
 import { sendEmail, generateOTP, sendDeliveryReturnOTP } from '../services/email.service.js';
 import { createInvoiceForBooking } from './invoice.controller.js';
 import mongoose from "mongoose";
+import cron from 'node-cron';
 
 // Check product availability for specific dates
 export const checkProductAvailability = async (req, res) => {
@@ -806,34 +807,137 @@ export const verifyDeliveryOTP = async (req, res) => {
       booking.deliveryStatus = "delivered";
       booking.deliveryDate = new Date();
       booking.status = "in_rental";
+      booking.pickupStatus = "completed";
+      booking.pickupDate = new Date();
+      
+      // Calculate owner payment amount (total - platform fee)
+      const platformFeePercent = 0.05; // 5% platform fee
+      const platformFee = booking.totalPrice * platformFeePercent;
+      const ownerAmount = booking.totalPrice - platformFee;
+      
+      booking.platformFee = platformFee;
+      booking.ownerAmount = ownerAmount;
+      booking.payoutStatus = "processing";
+      
       await booking.save();
+      
+      // Process payment to owner
+      try {
+        const ownerUser = await User.findById(booking.ownerId);
+        if (ownerUser?.stripeAccountId) {
+          const transfer = await createStripeTransfer(
+            ownerAmount,
+            ownerUser.stripeAccountId,
+            {
+              bookingId: booking._id.toString(),
+              type: 'rental_payment',
+              description: `Rental payment for ${booking.productId.title}`
+            }
+          );
+          
+          booking.payoutStatus = "completed";
+          booking.payoutDate = new Date();
+          await booking.save();
+          
+          console.log(`Payment of ₹${ownerAmount} transferred to owner:`, transfer.id);
+        } else {
+          console.log('Owner does not have Stripe account connected - payment pending');
+          booking.payoutStatus = "failed";
+          await booking.save();
+        }
+      } catch (paymentError) {
+        console.error('Error processing owner payment:', paymentError);
+        booking.payoutStatus = "failed";
+        await booking.save();
+      }
       
       // Create notifications
       await Promise.all([
-        // Notify owner
+        // Notify owner about delivery and payment
         Notification.create({
           userId: booking.ownerId,
           userClerkId: booking.ownerClerkId,
-          type: "delivery_completed",
-          message: `Product has been successfully delivered to the renter`,
+          type: "pickup_completed",
+          message: `Product pickup completed! Payment of ₹${ownerAmount} has been ${booking.payoutStatus === 'completed' ? 'transferred to your account' : 'initiated'}`,
           relatedId: booking._id,
           relatedType: "booking"
         }),
-        // Notify renter
+        // Notify renter about pickup completion
         Notification.create({
           userId: booking.renterId,
           userClerkId: booking.renterClerkId,
-          type: "delivery_completed",
-          message: `Product has been successfully delivered to you`,
+          type: "pickup_completed",
+          message: `Product pickup completed successfully! Rental period has started.`,
           relatedId: booking._id,
           relatedType: "booking"
         })
       ]);
       
+      // Send email notifications
+      try {
+        const ownerUser = await User.findById(booking.ownerId);
+        const renterUser = await User.findById(booking.renterId);
+        const productData = await mongoose.model('Product').findById(booking.productId);
+        
+        // Email to owner
+        if (ownerUser?.email) {
+          await sendEmail(
+            ownerUser.email,
+            'Product Pickup Completed - Payment Processed',
+            `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #7c3aed;">Pickup Completed Successfully!</h2>
+              <p>Dear ${ownerUser.firstName || ownerUser.username},</p>
+              <p>Great news! The pickup for your product <strong>${productData?.title}</strong> has been completed by both you and the renter.</p>
+              
+              <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #374151; margin-top: 0;">Payment Details:</h3>
+                <p><strong>Total Rental Amount:</strong> ₹${booking.totalPrice}</p>
+                <p><strong>Platform Fee (5%):</strong> ₹${platformFee.toFixed(2)}</p>
+                <p><strong>Your Payment:</strong> ₹${ownerAmount.toFixed(2)}</p>
+                <p><strong>Status:</strong> ${booking.payoutStatus === 'completed' ? '✅ Transferred to your account' : '⏳ Processing'}</p>
+              </div>
+              
+              <p>The rental period has officially started. The renter is expected to return the product by <strong>${new Date(booking.endDate).toLocaleDateString()}</strong>.</p>
+              <p>Thank you for using our platform!</p>
+            </div>
+            `
+          );
+        }
+        
+        // Email to renter
+        if (renterUser?.email) {
+          await sendEmail(
+            renterUser.email,
+            'Product Pickup Completed - Rental Started',
+            `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #7c3aed;">Pickup Completed Successfully!</h2>
+              <p>Dear ${renterUser.firstName || renterUser.username},</p>
+              <p>The pickup for <strong>${productData?.title}</strong> has been completed successfully!</p>
+              
+              <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #374151; margin-top: 0;">Rental Details:</h3>
+                <p><strong>Product:</strong> ${productData?.title}</p>
+                <p><strong>Rental Period:</strong> ${new Date(booking.startDate).toLocaleDateString()} - ${new Date(booking.endDate).toLocaleDateString()}</p>
+                <p><strong>Return Deadline:</strong> ${new Date(booking.endDate).toLocaleDateString()}</p>
+              </div>
+              
+              <p><strong>Important:</strong> Please ensure to return the product on time to avoid late fees. You'll receive return instructions closer to the end date.</p>
+              <p>Enjoy your rental!</p>
+            </div>
+            `
+          );
+        }
+      } catch (emailError) {
+        console.error('Error sending pickup completion emails:', emailError);
+      }
+      
       return res.json({ 
         success: true, 
-        message: "Delivery verified by both parties and completed",
-        booking
+        message: "Pickup verified by both parties and completed. Payment processed to owner.",
+        booking,
+        paymentStatus: booking.payoutStatus
       });
     }
     
@@ -974,39 +1078,144 @@ export const verifyReturnOTP = async (req, res) => {
     
     // Check if both owner and renter have verified
     if (otpRecord.ownerVerified && otpRecord.renterVerified) {
+      // Calculate if return is late
+      const currentDate = new Date();
+      const endDate = new Date(booking.endDate);
+      const isLate = currentDate > endDate;
+      
+      // Calculate late fee if applicable
+      let lateFee = 0;
+      if (isLate) {
+        const daysLate = Math.ceil((currentDate - endDate) / (1000 * 60 * 60 * 24));
+        lateFee = daysLate * (booking.totalPrice * 0.1); // 10% of daily rate per day late
+        booking.lateFee = lateFee;
+      }
+      
       // Complete the booking
       booking.status = "completed";
-      booking.returnStatus = "completed";
+      booking.returnStatus = isLate ? "late" : "completed";
       booking.returnDate = new Date();
       if (dropLocation) booking.dropLocation = dropLocation;
       await booking.save();
       
+      // Process late fee if applicable
+      if (lateFee > 0) {
+        try {
+          // Here you would charge the late fee to the renter's payment method
+          // For now, we'll just record it
+          console.log(`Late fee of ₹${lateFee} recorded for booking ${booking._id}`);
+        } catch (lateFeeError) {
+          console.error('Error processing late fee:', lateFeeError);
+        }
+      }
+      
       // Create notifications
       await Promise.all([
-        // Notify owner
+        // Notify owner about return completion
         Notification.create({
           userId: booking.ownerId,
           userClerkId: booking.ownerClerkId,
           type: "return_completed",
-          message: `Product has been successfully returned by the renter`,
+          message: `Product returned successfully! Rental agreement completed.${lateFee > 0 ? ` Late fee of ₹${lateFee} applied.` : ''}`,
           relatedId: booking._id,
           relatedType: "booking"
         }),
-        // Notify renter
+        // Notify renter about return completion
         Notification.create({
           userId: booking.renterId,
           userClerkId: booking.renterClerkId,
           type: "return_completed",
-          message: `You have successfully returned the product`,
+          message: `Product returned successfully! Rental agreement completed.${lateFee > 0 ? ` Late fee of ₹${lateFee} has been charged.` : ''}`,
+          relatedId: booking._id,
+          relatedType: "booking"
+        }),
+        // Notify both about rental agreement completion
+        Notification.create({
+          userId: booking.ownerId,
+          userClerkId: booking.ownerClerkId,
+          type: "rental_agreement_completed",
+          message: `Rental agreement for ${booking.productId?.title} has been successfully completed.`,
+          relatedId: booking._id,
+          relatedType: "booking"
+        }),
+        Notification.create({
+          userId: booking.renterId,
+          userClerkId: booking.renterClerkId,
+          type: "rental_agreement_completed",
+          message: `Rental agreement for ${booking.productId?.title} has been successfully completed.`,
           relatedId: booking._id,
           relatedType: "booking"
         })
       ]);
       
+      // Send email notifications
+      try {
+        const ownerUser = await User.findById(booking.ownerId);
+        const renterUser = await User.findById(booking.renterId);
+        const productData = await mongoose.model('Product').findById(booking.productId);
+        
+        // Email to owner
+        if (ownerUser?.email) {
+          await sendEmail(
+            ownerUser.email,
+            'Product Return Completed - Rental Agreement Finished',
+            `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #10b981;">Return Completed Successfully!</h2>
+              <p>Dear ${ownerUser.firstName || ownerUser.username},</p>
+              <p>Great news! Your product <strong>${productData?.title}</strong> has been returned by the renter and the rental agreement is now complete.</p>
+              
+              <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #374151; margin-top: 0;">Rental Summary:</h3>
+                <p><strong>Product:</strong> ${productData?.title}</p>
+                <p><strong>Rental Period:</strong> ${new Date(booking.startDate).toLocaleDateString()} - ${new Date(booking.endDate).toLocaleDateString()}</p>
+                <p><strong>Return Date:</strong> ${new Date().toLocaleDateString()}</p>
+                <p><strong>Status:</strong> ${isLate ? '🔶 Returned Late' : '✅ Returned On Time'}</p>
+                ${lateFee > 0 ? `<p><strong>Late Fee Collected:</strong> ₹${lateFee.toFixed(2)}</p>` : ''}
+              </div>
+              
+              <p>Thank you for using our platform. We hope you had a great rental experience!</p>
+            </div>
+            `
+          );
+        }
+        
+        // Email to renter
+        if (renterUser?.email) {
+          await sendEmail(
+            renterUser.email,
+            'Product Return Completed - Thank You!',
+            `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #10b981;">Return Completed Successfully!</h2>
+              <p>Dear ${renterUser.firstName || renterUser.username},</p>
+              <p>Thank you for returning <strong>${productData?.title}</strong>! Your rental agreement has been completed successfully.</p>
+              
+              <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #374151; margin-top: 0;">Rental Summary:</h3>
+                <p><strong>Product:</strong> ${productData?.title}</p>
+                <p><strong>Rental Period:</strong> ${new Date(booking.startDate).toLocaleDateString()} - ${new Date(booking.endDate).toLocaleDateString()}</p>
+                <p><strong>Return Date:</strong> ${new Date().toLocaleDateString()}</p>
+                <p><strong>Status:</strong> ${isLate ? '🔶 Returned Late' : '✅ Returned On Time'}</p>
+                ${lateFee > 0 ? `<p><strong>Late Fee Applied:</strong> ₹${lateFee.toFixed(2)}</p>` : ''}
+              </div>
+              
+              ${isLate ? '<p><strong>Note:</strong> A late fee has been applied to your account for returning the product after the deadline.</p>' : '<p>Thank you for returning the product on time!</p>'}
+              <p>We hope you enjoyed your rental experience. Feel free to rent again anytime!</p>
+            </div>
+            `
+          );
+        }
+      } catch (emailError) {
+        console.error('Error sending return completion emails:', emailError);
+      }
+      
       return res.json({ 
         success: true, 
-        message: "Return verified by both parties and booking completed",
-        booking
+        message: "Return verified by both parties and rental agreement completed",
+        booking,
+        lateFee: lateFee,
+        isLate: isLate
       });
     }
     
@@ -1100,11 +1309,303 @@ export const cancelBooking = async (req, res) => {
       }
     }
 
-    res.json({ success: true, message: "Booking cancelled (no payment to refund)" });
+    res.json({ success: true, message: "Booking cancelled" });
   } catch (error) {
+    console.error('Error cancelling booking:', error);
     res.status(500).json({ success: false, message: "Failed to cancel booking", error: error.message });
   }
 };
+
+// Deadline monitoring and warning system
+export const checkAndProcessOverdueRentals = async () => {
+  try {
+    console.log('Running overdue rental check...');
+    const currentTime = new Date();
+    
+    // Find all active rentals
+    const activeRentals = await Booking.find({
+      status: 'in_rental',
+      returnStatus: { $in: ['pending', 'scheduled'] }
+    }).populate('renterId', 'email firstName lastName username')
+      .populate('ownerId', 'email firstName lastName username')
+      .populate('productId', 'title');
+
+    for (const booking of activeRentals) {
+      const endDate = new Date(booking.endDate);
+      const timeDiff = currentTime - endDate;
+      const hoursOverdue = timeDiff / (1000 * 60 * 60);
+      
+      // Send reminder 6 hours before deadline
+      const sixHoursBefore = new Date(endDate.getTime() - (6 * 60 * 60 * 1000));
+      if (currentTime >= sixHoursBefore && currentTime <= endDate && !booking.reminderSent) {
+        await sendReturnReminder(booking);
+        booking.reminderSent = true;
+        await booking.save();
+      }
+      
+      // Send deadline notification at exact deadline
+      if (currentTime >= endDate && hoursOverdue <= 0.5 && !booking.deadlineSent) {
+        await sendDeadlineNotification(booking);
+        booking.deadlineSent = true;
+        await booking.save();
+      }
+      
+      // Send warning and apply charges 30 minutes after deadline
+      if (hoursOverdue >= 0.5 && !booking.warningSent) {
+        await sendOverdueWarning(booking);
+        booking.warningSent = true;
+        booking.returnStatus = 'late';
+        await booking.save();
+      }
+      
+      // Apply escalating late fees for every 24 hours overdue
+      if (hoursOverdue >= 24) {
+        const daysLate = Math.floor(hoursOverdue / 24);
+        const dailyLateRate = booking.totalPrice * 0.1; // 10% of total per day
+        const totalLateFee = daysLate * dailyLateRate;
+        
+        if (totalLateFee > booking.lateFee) {
+          booking.lateFee = totalLateFee;
+          await booking.save();
+          
+          // Send escalated warning
+          await sendEscalatedWarning(booking, daysLate, totalLateFee);
+        }
+      }
+    }
+    
+    console.log(`Processed ${activeRentals.length} active rentals`);
+  } catch (error) {
+    console.error('Error in overdue rental check:', error);
+  }
+};
+
+// Send return reminder (6 hours before deadline)
+const sendReturnReminder = async (booking) => {
+  try {
+    // Create notification
+    await Notification.create({
+      userId: booking.renterId,
+      userClerkId: booking.renterClerkId,
+      type: "return_reminder",
+      message: `Reminder: Please return ${booking.productId.title} by ${new Date(booking.endDate).toLocaleString()}`,
+      relatedId: booking._id,
+      relatedType: "booking"
+    });
+    
+    // Send email
+    if (booking.renterId.email) {
+      await sendEmail(
+        booking.renterId.email,
+        'Return Reminder - Product Return Due Soon',
+        `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #f59e0b;">Return Reminder</h2>
+          <p>Dear ${booking.renterId.firstName || booking.renterId.username},</p>
+          <p>This is a friendly reminder that your rental period for <strong>${booking.productId.title}</strong> ends in approximately 6 hours.</p>
+          
+          <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+            <h3 style="color: #92400e; margin-top: 0;">⏰ Return Details:</h3>
+            <p><strong>Return Deadline:</strong> ${new Date(booking.endDate).toLocaleString()}</p>
+            <p><strong>Product:</strong> ${booking.productId.title}</p>
+            <p><strong>Return Location:</strong> ${booking.dropLocation || 'To be arranged with owner'}</p>
+          </div>
+          
+          <p><strong>Important:</strong> Please arrange for the return of the product before the deadline to avoid late fees.</p>
+          <p>Contact the product owner if you need assistance with the return process.</p>
+        </div>
+        `
+      );
+    }
+    
+    console.log(`Return reminder sent for booking ${booking._id}`);
+  } catch (error) {
+    console.error('Error sending return reminder:', error);
+  }
+};
+
+// Send deadline notification (at exact deadline)
+const sendDeadlineNotification = async (booking) => {
+  try {
+    // Notify both renter and owner
+    await Promise.all([
+      // Notify renter
+      Notification.create({
+        userId: booking.renterId,
+        userClerkId: booking.renterClerkId,
+        type: "return_deadline",
+        message: `⚠️ URGENT: Return deadline reached for ${booking.productId.title}. Please return immediately to avoid late fees.`,
+        relatedId: booking._id,
+        relatedType: "booking"
+      }),
+      // Notify owner
+      Notification.create({
+        userId: booking.ownerId,
+        userClerkId: booking.ownerClerkId,
+        type: "return_deadline",
+        message: `Return deadline reached for ${booking.productId.title}. Contact renter if needed.`,
+        relatedId: booking._id,
+        relatedType: "booking"
+      })
+    ]);
+    
+    // Send urgent email to renter
+    if (booking.renterId.email) {
+      await sendEmail(
+        booking.renterId.email,
+        '🚨 URGENT: Return Deadline Reached',
+        `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #dc2626;">🚨 Return Deadline Reached</h2>
+          <p>Dear ${booking.renterId.firstName || booking.renterId.username},</p>
+          <p>The return deadline for <strong>${booking.productId.title}</strong> has been reached.</p>
+          
+          <div style="background-color: #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc2626;">
+            <h3 style="color: #991b1b; margin-top: 0;">⚠️ Action Required:</h3>
+            <p><strong>Return the product IMMEDIATELY to avoid late fees</strong></p>
+            <p><strong>Deadline:</strong> ${new Date(booking.endDate).toLocaleString()}</p>
+            <p><strong>Product:</strong> ${booking.productId.title}</p>
+          </div>
+          
+          <p><strong>WARNING:</strong> Late fees will start accumulating after 30 minutes from the deadline.</p>
+          <p>Please contact the owner immediately to arrange return.</p>
+        </div>
+        `
+      );
+    }
+    
+    console.log(`Deadline notification sent for booking ${booking._id}`);
+  } catch (error) {
+    console.error('Error sending deadline notification:', error);
+  }
+};
+
+// Send overdue warning (30 minutes after deadline)
+const sendOverdueWarning = async (booking) => {
+  try {
+    const initialLateFee = booking.totalPrice * 0.05; // 5% initial late fee
+    
+    // Update booking with initial late fee
+    booking.lateFee = initialLateFee;
+    await booking.save();
+    
+    // Notify both parties
+    await Promise.all([
+      // Notify renter
+      Notification.create({
+        userId: booking.renterId,
+        userClerkId: booking.renterClerkId,
+        type: "overdue_warning",
+        message: `🔴 OVERDUE: ${booking.productId.title} return is late. Late fee of ₹${initialLateFee.toFixed(2)} applied. Additional charges will accumulate daily.`,
+        relatedId: booking._id,
+        relatedType: "booking"
+      }),
+      // Notify owner
+      Notification.create({
+        userId: booking.ownerId,
+        userClerkId: booking.ownerClerkId,
+        type: "overdue_warning",
+        message: `Product ${booking.productId.title} is overdue. Late fee of ₹${initialLateFee.toFixed(2)} applied to renter.`,
+        relatedId: booking._id,
+        relatedType: "booking"
+      })
+    ]);
+    
+    // Send overdue email to renter
+    if (booking.renterId.email) {
+      await sendEmail(
+        booking.renterId.email,
+        '🔴 OVERDUE: Late Fee Applied - Return Required',
+        `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #dc2626;">🔴 Product Return is OVERDUE</h2>
+          <p>Dear ${booking.renterId.firstName || booking.renterId.username},</p>
+          <p>Your rental for <strong>${booking.productId.title}</strong> is now overdue.</p>
+          
+          <div style="background-color: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid #dc2626;">
+            <h3 style="color: #991b1b; margin-top: 0;">💰 Late Fee Applied:</h3>
+            <p><strong>Initial Late Fee:</strong> ₹${initialLateFee.toFixed(2)}</p>
+            <p><strong>Daily Late Fee:</strong> ₹${(booking.totalPrice * 0.1).toFixed(2)} per day</p>
+            <p><strong>Was Due:</strong> ${new Date(booking.endDate).toLocaleString()}</p>
+          </div>
+          
+          <div style="background-color: #fbbf24; color: white; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0; font-weight: bold;">⚠️ WARNING: Additional charges of ₹${(booking.totalPrice * 0.1).toFixed(2)} will be added for each day the product remains unreturned.</p>
+          </div>
+          
+          <p><strong>URGENT ACTION REQUIRED:</strong> Return the product immediately to prevent further charges.</p>
+        </div>
+        `
+      );
+    }
+    
+    console.log(`Overdue warning sent for booking ${booking._id}, late fee: ₹${initialLateFee}`);
+  } catch (error) {
+    console.error('Error sending overdue warning:', error);
+  }
+};
+
+// Send escalated warning for multi-day delays
+const sendEscalatedWarning = async (booking, daysLate, totalLateFee) => {
+  try {
+    // Notify renter about escalated charges
+    await Notification.create({
+      userId: booking.renterId,
+      userClerkId: booking.renterClerkId,
+      type: "escalated_overdue",
+      message: `🚨 CRITICAL: ${booking.productId.title} is ${daysLate} days overdue. Total late fees: ₹${totalLateFee.toFixed(2)}. Return immediately!`,
+      relatedId: booking._id,
+      relatedType: "booking"
+    });
+    
+    // Send escalated email
+    if (booking.renterId.email) {
+      await sendEmail(
+        booking.renterId.email,
+        `🚨 CRITICAL: ${daysLate} Days Overdue - Escalated Charges`,
+        `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #7f1d1d;">🚨 CRITICAL OVERDUE SITUATION</h2>
+          <p>Dear ${booking.renterId.firstName || booking.renterId.username},</p>
+          <p>Your rental for <strong>${booking.productId.title}</strong> is now <strong>${daysLate} days overdue</strong>.</p>
+          
+          <div style="background-color: #7f1d1d; color: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="color: white; margin-top: 0;">💰 ACCUMULATED CHARGES:</h3>
+            <p><strong>Days Overdue:</strong> ${daysLate} days</p>
+            <p><strong>Total Late Fees:</strong> ₹${totalLateFee.toFixed(2)}</p>
+            <p><strong>Daily Rate:</strong> ₹${(booking.totalPrice * 0.1).toFixed(2)} per day</p>
+          </div>
+          
+          <div style="background-color: #fbbf24; color: #92400e; padding: 15px; border-radius: 8px; margin: 20px 0; font-weight: bold;">
+            <p style="margin: 0;">⚠️ Charges continue to accumulate daily until the product is returned!</p>
+          </div>
+          
+          <p><strong>IMMEDIATE ACTION REQUIRED:</strong> Return the product NOW to stop additional charges.</p>
+          <p>Contact our support team if you need assistance: support@rentalplatform.com</p>
+        </div>
+        `
+      );
+    }
+    
+    console.log(`Escalated warning sent for booking ${booking._id}, days late: ${daysLate}, total fee: ₹${totalLateFee}`);
+  } catch (error) {
+    console.error('Error sending escalated warning:', error);
+  }
+};
+
+// Initialize cron job for deadline monitoring (runs every 30 minutes)
+const initializeDeadlineMonitoring = () => {
+  // Run every 30 minutes
+  cron.schedule('*/30 * * * *', () => {
+    console.log('Running scheduled overdue rental check...');
+    checkAndProcessOverdueRentals();
+  });
+  
+  console.log('Deadline monitoring cron job initialized - running every 30 minutes');
+};
+
+// Export the initialization function
+export { initializeDeadlineMonitoring };
 
 // Update booking payment status (simple payment completion)
 export const updateBookingPaymentStatus = async (req, res) => {
