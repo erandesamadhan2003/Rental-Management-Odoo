@@ -398,3 +398,116 @@ export const rejectProduct = async (req, res) => {
     handleError(res, error, "Failed to reject product");
   }
 };
+
+// Get current booking status of a product
+export const getProductBookingStatus = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+    
+    const Booking = mongoose.model('Booking');
+    const now = new Date();
+    
+    // Get current active booking (if any)
+    const currentBooking = await Booking.findOne({
+      productId: productId,
+      status: { $in: ['confirmed', 'accepted', 'in_rental'] },
+      paymentStatus: { $in: ['paid', 'confirmed'] },
+      startDate: { $lte: now },
+      endDate: { $gte: now }
+    }).populate('renterId', 'firstName lastName username');
+    
+    // Get next upcoming booking
+    const nextBooking = await Booking.findOne({
+      productId: productId,
+      status: { $in: ['confirmed', 'accepted', 'pending_payment'] },
+      paymentStatus: { $in: ['paid', 'pending', 'confirmed'] },
+      startDate: { $gt: now }
+    }).sort({ startDate: 1 }).populate('renterId', 'firstName lastName username');
+    
+    // Get all future bookings for availability calendar
+    const futureBookings = await Booking.find({
+      productId: productId,
+      status: { $in: ['confirmed', 'accepted', 'pending_payment', 'in_rental'] },
+      paymentStatus: { $in: ['paid', 'pending', 'confirmed'] },
+      endDate: { $gte: now }
+    }).sort({ startDate: 1 }).select('startDate endDate status paymentStatus');
+    
+    // Determine current status
+    let currentStatus = 'available';
+    let statusMessage = 'This product is currently available for rent';
+    
+    if (currentBooking) {
+      currentStatus = 'rented';
+      statusMessage = `Currently rented until ${currentBooking.endDate.toLocaleDateString()}`;
+    } else if (nextBooking && nextBooking.startDate <= new Date(now.getTime() + 24 * 60 * 60 * 1000)) { // Within 24 hours
+      currentStatus = 'preparing';
+      statusMessage = `Preparing for next rental on ${nextBooking.startDate.toLocaleDateString()}`;
+    }
+    
+    // Calculate next available date
+    let nextAvailableDate = now;
+    if (futureBookings.length > 0) {
+      // Find the first gap in bookings or after the last booking
+      const sortedBookings = futureBookings.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+      let currentDate = now;
+      
+      for (const booking of sortedBookings) {
+        if (currentDate < new Date(booking.startDate)) {
+          // Found a gap
+          nextAvailableDate = currentDate;
+          break;
+        }
+        currentDate = new Date(booking.endDate);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      // If no gap found, available after last booking
+      if (nextAvailableDate <= now) {
+        const lastBooking = sortedBookings[sortedBookings.length - 1];
+        nextAvailableDate = new Date(lastBooking.endDate);
+        nextAvailableDate.setDate(nextAvailableDate.getDate() + 1);
+      }
+    }
+    
+    res.json({
+      success: true,
+      productId,
+      currentStatus,
+      statusMessage,
+      currentBooking: currentBooking ? {
+        id: currentBooking._id,
+        renter: currentBooking.renterId,
+        startDate: currentBooking.startDate,
+        endDate: currentBooking.endDate,
+        status: currentBooking.status
+      } : null,
+      nextBooking: nextBooking ? {
+        id: nextBooking._id,
+        renter: nextBooking.renterId,
+        startDate: nextBooking.startDate,
+        endDate: nextBooking.endDate,
+        status: nextBooking.status
+      } : null,
+      nextAvailableDate,
+      totalActiveBookings: futureBookings.length,
+      futureBookings: futureBookings.map(booking => ({
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        status: booking.status,
+        paymentStatus: booking.paymentStatus
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting product booking status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get product booking status',
+      error: error.message
+    });
+  }
+};

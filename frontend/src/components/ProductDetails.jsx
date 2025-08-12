@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Navbar from './Navbar'
 import RentalForm from './RentalForm'
+import AvailabilityCalendar from './AvailabilityCalendar'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
 
@@ -381,31 +382,17 @@ const ProductDetails = () => {
 
                 {activeTab === 'availability' && (
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Availability Calendar</h3>
-                    {product.availability && product.availability.length > 0 ? (
-                      <div className="space-y-3">
-                        <p className="text-gray-600 mb-4">Available periods:</p>
-                        {product.availability.map((period, index) => (
-                          <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4">
-                            <div className="flex items-center">
-                              <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                              <span className="text-green-800">
-                                {new Date(period.startDate).toLocaleDateString()} - {new Date(period.endDate).toLocaleDateString()}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <p className="text-gray-600">No specific availability periods set. Contact owner for availability.</p>
-                      </div>
-                    )}
+                    <AvailabilityCalendar 
+                      productId={product._id}
+                      onDateRangeSelect={(startDate, endDate) => {
+                        // Handle date range selection for viewing
+                        console.log('Date range selected for viewing:', { startDate, endDate })
+                      }}
+                      onAvailabilityCheck={(isAvailable) => {
+                        // Handle availability check result
+                        console.log('Availability check result:', isAvailable)
+                      }}
+                    />
                   </div>
                 )}
               </div>

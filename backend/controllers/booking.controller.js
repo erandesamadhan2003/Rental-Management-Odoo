@@ -57,6 +57,74 @@ export const checkProductAvailability = async (req, res) => {
   }
 };
 
+// Get product availability calendar data
+export const getProductAvailabilityCalendar = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { startMonth, endMonth } = req.query;
+    
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product ID is required'
+      });
+    }
+    
+    // Set default date range (current month + 6 months)
+    const now = new Date();
+    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 6, 0);
+    
+    const rangeStart = startMonth ? new Date(startMonth) : defaultStart;
+    const rangeEnd = endMonth ? new Date(endMonth) : defaultEnd;
+    
+    // Get all bookings for this product within the date range
+    const bookings = await Booking.find({
+      productId: productId,
+      status: { $in: ['confirmed', 'accepted', 'in_rental', 'pending_payment'] },
+      paymentStatus: { $in: ['paid', 'pending'] },
+      $or: [
+        {
+          startDate: { $gte: rangeStart, $lte: rangeEnd }
+        },
+        {
+          endDate: { $gte: rangeStart, $lte: rangeEnd }
+        },
+        {
+          startDate: { $lte: rangeStart },
+          endDate: { $gte: rangeEnd }
+        }
+      ]
+    }).select('startDate endDate status paymentStatus');
+    
+    // Format bookings for calendar
+    const unavailablePeriods = bookings.map(booking => ({
+      startDate: booking.startDate,
+      endDate: booking.endDate,
+      status: booking.status,
+      paymentStatus: booking.paymentStatus
+    }));
+    
+    res.json({
+      success: true,
+      productId,
+      dateRange: {
+        start: rangeStart,
+        end: rangeEnd
+      },
+      unavailablePeriods,
+      totalBookings: bookings.length
+    });
+  } catch (error) {
+    console.error('Error getting product availability calendar:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get product availability calendar',
+      error: error.message
+    });
+  }
+};
+
 // Calculate platform fee (10% default) and owner amount
 const calculateAmounts = (totalPrice) => {
   const platformFee = Math.round(totalPrice * 0.1); // 10%

@@ -61,8 +61,8 @@ const AdminDashboardRedux = () => {
         navigate('/admin/orders')
         break
       case 'reports':
-        // For now, navigate to Reports page - update this if you have a specific admin reports page
-        navigate('/reports')
+        // Navigate to admin reports page
+        navigate('/admin/reports')
         break
       default:
         break

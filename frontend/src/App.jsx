@@ -35,6 +35,7 @@ import AdminUserManagement from './components/admin/AdminUserManagement'
 import AdminProductManagement from './components/admin/AdminProductManagement'
 import AdminProductManagementRedux from './components/admin/AdminProductManagementRedux'
 import AdminOrderManagementRedux from './components/admin/AdminOrderManagementRedux'
+import AdminReports from './components/admin/AdminReports'
 import Notifications from './components/Notifications'
 import PaymentPage from './components/PaymentPage'
 import Payment from './pages/Payment'
@@ -317,6 +318,14 @@ const router = createBrowserRouter([
     element: (
       <AdminRoute>
         <AdminOrderManagementRedux />
+      </AdminRoute>
+    )
+  },
+  {
+    path: '/admin/reports',
+    element: (
+      <AdminRoute>
+        <AdminReports />
       </AdminRoute>
     )
   },

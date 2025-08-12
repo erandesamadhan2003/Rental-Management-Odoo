@@ -7,6 +7,8 @@ import { useProducts, useBookings } from '../hooks/useRedux'
 import { getBrowseProducts, setFilters, clearFilters } from '../app/features/productSlice'
 import { createRentalRequest } from '../app/features/bookingSlice'
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
+
 const BrowseProducts = () => {
   const { user } = useUser()
   const navigate = useNavigate()
@@ -382,9 +384,84 @@ const BrowseProducts = () => {
   )
 }
 
-// Product Card Component matching the design from the image
+// Product Card Component with real-time availability status
 const ProductCard = ({ product, viewMode, onRentNow, onViewDetails, getProductPrice, getProductName, getAvailabilityStatus }) => {
+  const [bookingStatus, setBookingStatus] = useState(null)
+  const [loading, setLoading] = useState(false)
   const isAvailable = getAvailabilityStatus(product) === 'available'
+
+  useEffect(() => {
+    const fetchBookingStatus = async () => {
+      setLoading(true)
+      try {
+        const response = await fetch(`${API_BASE_URL}/products/booking-status/${product._id}`)
+        const data = await response.json()
+        
+        if (data.success) {
+          setBookingStatus(data)
+        }
+      } catch (error) {
+        console.error('Error fetching booking status:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (product._id) {
+      fetchBookingStatus()
+    }
+  }, [product._id])
+
+  const getStatusBadge = () => {
+    if (loading) {
+      return (
+        <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">
+          Loading...
+        </span>
+      )
+    }
+
+    if (!bookingStatus) {
+      return (
+        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+          isAvailable 
+            ? 'bg-green-100 text-green-800' 
+            : 'bg-red-100 text-red-800'
+        }`}>
+          {isAvailable ? 'Available' : 'Unavailable'}
+        </span>
+      )
+    }
+
+    switch (bookingStatus.currentStatus) {
+      case 'available':
+        return (
+          <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+            ✅ Available
+          </span>
+        )
+      case 'rented':
+        return (
+          <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+            🔴 Rented
+          </span>
+        )
+      case 'preparing':
+        return (
+          <span className="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+            ⏰ Preparing
+          </span>
+        )
+      default:
+        return (
+          <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">
+            Unknown
+          </span>
+        )
+    }
+  }
+
+  const canRent = bookingStatus?.currentStatus === 'available' || isAvailable
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
@@ -392,13 +469,7 @@ const ProductCard = ({ product, viewMode, onRentNow, onViewDetails, getProductPr
       <div className="relative p-4 pb-2">
         <div className="flex justify-between items-start mb-3">
           <div className="w-8 h-8 border-2 border-gray-300 rounded"></div>
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-            isAvailable 
-              ? 'bg-green-100 text-green-800' 
-              : 'bg-red-100 text-red-800'
-          }`}>
-            {isAvailable ? 'approved' : 'unavailable'}
-          </span>
+          {getStatusBadge()}
         </div>
 
         {/* Product Image/Icon */}
@@ -436,6 +507,18 @@ const ProductCard = ({ product, viewMode, onRentNow, onViewDetails, getProductPr
             : product.description || 'High quality rentable item.'}
         </p>
 
+        {/* Booking Status Info */}
+        {bookingStatus && bookingStatus.currentStatus !== 'available' && (
+          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-600">{bookingStatus.statusMessage}</p>
+            {bookingStatus.nextAvailableDate && (
+              <p className="text-xs text-gray-500 mt-1">
+                Next available: {new Date(bookingStatus.nextAvailableDate).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Price and Owner */}
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -452,14 +535,14 @@ const ProductCard = ({ product, viewMode, onRentNow, onViewDetails, getProductPr
         <div className="flex gap-2">
           <button
             onClick={() => onRentNow(product)}
-            disabled={!isAvailable}
+            disabled={!canRent}
             className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-              isAvailable
+              canRent
                 ? 'bg-purple-200 hover:bg-purple-300 text-purple-800'
                 : 'bg-gray-200 text-gray-500 cursor-not-allowed'
             }`}
           >
-            Rent Now
+            {canRent ? 'Rent Now' : 'Not Available'}
           </button>
           <button
             onClick={() => onViewDetails(product)}

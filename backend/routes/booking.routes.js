@@ -17,6 +17,7 @@ import {
   generateReturnOTP,
   verifyReturnOTP,
   checkProductAvailability,
+  getProductAvailabilityCalendar,
   checkAndProcessOverdueRentals
 } from "../controllers/booking.controller.js";
 
@@ -24,6 +25,9 @@ const router = express.Router();
 
 // Check product availability
 router.get('/availability/check', checkProductAvailability);
+
+// Get product availability calendar
+router.get('/availability/calendar/:productId', getProductAvailabilityCalendar);
 
 // List bookings
 router.get('/', listBookings);

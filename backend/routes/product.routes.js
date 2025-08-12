@@ -11,7 +11,8 @@ import {
   deleteProduct,
   approveProduct,
   rejectProduct,
-  checkProductAvailability
+  checkProductAvailability,
+  getProductBookingStatus
 } from "../controllers/product.controller.js";
 import { uploadBuffer } from '../services/cloudinary.service.js'
 
@@ -25,6 +26,7 @@ router.get("/", getAllProducts);
 router.get("/my/:clerkId", getMyProducts);
 router.get("/browse/:clerkId", getBrowseProducts);
 router.get("/availability/:productId", checkProductAvailability);
+router.get("/booking-status/:productId", getProductBookingStatus);
 router.get("/:id", getProductById);
 
 // Upload images to Cloudinary
