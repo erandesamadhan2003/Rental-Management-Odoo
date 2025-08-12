@@ -42,7 +42,7 @@ const Orders = () => {
         <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-md border border-purple-200 p-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
             <h1 className="text-3xl font-bold text-midnight-800 mb-4 sm:mb-0">Orders Management</h1>
-            <button
+            {/* <button
               onClick={() => navigate('/orders/new')}
               className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200 flex items-center space-x-2"
             >
@@ -50,7 +50,7 @@ const Orders = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               <span>New Rental Order</span>
-            </button>
+            </button> */}
           </div>
           {isLoading && <div className="text-navy-600">Loading...</div>}
           {error && <div className="text-red-600">{error}</div>}

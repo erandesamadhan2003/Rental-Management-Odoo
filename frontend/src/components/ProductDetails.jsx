@@ -283,7 +283,7 @@ const ProductDetails = () => {
               <div className="flex space-x-4 pt-6">
                 <button
                   onClick={handleRentNow}
-                  className="flex-1 bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+                  className="flex-1 bg-green-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors"
                 >
                   Rent Now
                 </button>
@@ -313,7 +313,7 @@ const ProductDetails = () => {
                       onClick={() => setActiveTab(tab.id)}
                       className={`py-2 px-1 border-b-2 font-medium text-sm ${
                         activeTab === tab.id
-                          ? 'border-purple-500 text-purple-600'
+                          ? 'border-green-600 text-green-700'
                           : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     >
