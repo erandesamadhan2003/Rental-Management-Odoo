@@ -2,6 +2,7 @@ import Booking from "../models/booking.model.js";
 import Payment from "../models/payment.model.js";
 import User from "../models/user.js";
 import Notification from "../models/notification.model.js";
+import OTP from "../models/otp.model.js";
 import NotificationService from "../services/notification.service.js";
 import { createStripePaymentIntent, confirmStripePayment, createStripeTransfer, refundStripePayment } from "../services/payment.service.js";
 import { sendEmail, generateOTP, sendDeliveryReturnOTP } from '../services/email.service.js';
@@ -778,7 +779,7 @@ export const generateDeliveryOTP = async (req, res) => {
     expiresAt.setMinutes(expiresAt.getMinutes() + 10); // OTP valid for 10 minutes
     
     // Check if an active OTP already exists
-    const existingOTP = await mongoose.model('OTP').findOne({
+    const existingOTP = await OTP.findOne({
       bookingId: booking._id,
       type: "delivery",
       expiresAt: { $gt: new Date() }
@@ -793,7 +794,7 @@ export const generateDeliveryOTP = async (req, res) => {
       await existingOTP.save();
     } else {
       // Create new OTP record
-      await mongoose.model('OTP').create({
+      await OTP.create({
         bookingId: booking._id,
         otp,
         type: "delivery",
@@ -813,6 +814,28 @@ export const generateDeliveryOTP = async (req, res) => {
       booking.productId.title,
       true // isDelivery = true
     );
+
+    // Create notification for pickup request
+    if (userType === 'renter') {
+      // Renter is requesting pickup - notify owner
+      await NotificationService.createPickupRequestNotification({
+        ownerId: booking.ownerClerkId,
+        renterId: booking.renterClerkId,
+        productTitle: booking.productId.title,
+        bookingId: booking._id,
+        requestedBy: 'renter',
+        pickupLocation: booking.pickupLocation || 'As specified'
+      });
+    } else {
+      // Owner is initiating pickup process - notify renter
+      await NotificationService.createPickupInitiationNotification({
+        renterId: booking.renterClerkId,
+        ownerId: booking.ownerClerkId,
+        productTitle: booking.productId.title,
+        bookingId: booking._id,
+        pickupLocation: booking.pickupLocation || 'As specified'
+      });
+    }
     
     res.json({ 
       success: true, 
@@ -841,7 +864,7 @@ export const verifyDeliveryOTP = async (req, res) => {
     }
     
     // Find active OTP for this booking
-    const otpRecord = await mongoose.model('OTP').findOne({
+    const otpRecord = await OTP.findOne({
       bookingId: booking._id,
       type: "delivery",
       otp,
@@ -1007,6 +1030,34 @@ export const verifyDeliveryOTP = async (req, res) => {
         booking,
         paymentStatus: booking.payoutStatus
       });
+    } else {
+      // Only one party has verified - notify the other party
+      const bookingWithDetails = await Booking.findById(bookingId)
+        .populate('productId', 'title')
+        .populate('renterId', 'firstName lastName username clerkId')
+        .populate('ownerId', 'firstName lastName username clerkId');
+
+      if (userType === 'owner' && !otpRecord.renterVerified) {
+        // Owner verified, notify renter
+        await NotificationService.createPickupVerificationNotification({
+          targetUserId: bookingWithDetails.renterId._id,
+          targetUserClerkId: bookingWithDetails.renterId.clerkId,
+          verifiedBy: bookingWithDetails.ownerId.firstName || 'Owner',
+          productTitle: bookingWithDetails.productId.title,
+          bookingId: booking._id,
+          waitingFor: 'renter'
+        });
+      } else if (userType === 'renter' && !otpRecord.ownerVerified) {
+        // Renter verified, notify owner
+        await NotificationService.createPickupVerificationNotification({
+          targetUserId: bookingWithDetails.ownerId._id,
+          targetUserClerkId: bookingWithDetails.ownerId.clerkId,
+          verifiedBy: bookingWithDetails.renterId.firstName || 'Renter',
+          productTitle: bookingWithDetails.productId.title,
+          bookingId: booking._id,
+          waitingFor: 'owner'
+        });
+      }
     }
     
     res.json({ 
@@ -1053,7 +1104,7 @@ export const generateReturnOTP = async (req, res) => {
     expiresAt.setMinutes(expiresAt.getMinutes() + 10); // OTP valid for 10 minutes
     
     // Check if an active OTP already exists
-    const existingOTP = await mongoose.model('OTP').findOne({
+    const existingOTP = await OTP.findOne({
       bookingId: booking._id,
       type: "return",
       expiresAt: { $gt: new Date() }
@@ -1068,7 +1119,7 @@ export const generateReturnOTP = async (req, res) => {
       await existingOTP.save();
     } else {
       // Create new OTP record
-      await mongoose.model('OTP').create({
+      await OTP.create({
         bookingId: booking._id,
         otp,
         type: "return",
@@ -1088,6 +1139,28 @@ export const generateReturnOTP = async (req, res) => {
       booking.productId.title,
       false // isDelivery = false (return)
     );
+
+    // Create notification for return request
+    if (userType === 'renter') {
+      // Renter is requesting return - notify owner
+      await NotificationService.createReturnRequestNotification({
+        ownerId: booking.ownerClerkId,
+        renterId: booking.renterClerkId,
+        productTitle: booking.productId.title,
+        bookingId: booking._id,
+        requestedBy: 'renter',
+        dropLocation: booking.dropLocation || 'As specified'
+      });
+    } else {
+      // Owner is initiating return process - notify renter
+      await NotificationService.createReturnInitiationNotification({
+        renterId: booking.renterClerkId,
+        ownerId: booking.ownerClerkId,
+        productTitle: booking.productId.title,
+        bookingId: booking._id,
+        dropLocation: booking.dropLocation || 'As specified'
+      });
+    }
     
     res.json({ 
       success: true, 
@@ -1116,7 +1189,7 @@ export const verifyReturnOTP = async (req, res) => {
     }
     
     // Find active OTP for this booking
-    const otpRecord = await mongoose.model('OTP').findOne({
+    const otpRecord = await OTP.findOne({
       bookingId: booking._id,
       type: "return",
       otp,
@@ -1177,44 +1250,14 @@ export const verifyReturnOTP = async (req, res) => {
         }
       }
       
-      // Create notifications
-      await Promise.all([
-        // Notify owner about return completion
-        Notification.create({
-          userId: booking.ownerId,
-          userClerkId: booking.ownerClerkId,
-          type: "return_completed",
-          message: `Product returned successfully! Rental agreement completed.${lateFee > 0 ? ` Late fee of ₹${lateFee} applied.` : ''}`,
-          relatedId: booking._id,
-          relatedType: "booking"
-        }),
-        // Notify renter about return completion
-        Notification.create({
-          userId: booking.renterId,
-          userClerkId: booking.renterClerkId,
-          type: "return_completed",
-          message: `Product returned successfully! Rental agreement completed.${lateFee > 0 ? ` Late fee of ₹${lateFee} has been charged.` : ''}`,
-          relatedId: booking._id,
-          relatedType: "booking"
-        }),
-        // Notify both about rental agreement completion
-        Notification.create({
-          userId: booking.ownerId,
-          userClerkId: booking.ownerClerkId,
-          type: "rental_agreement_completed",
-          message: `Rental agreement for ${booking.productId?.title} has been successfully completed.`,
-          relatedId: booking._id,
-          relatedType: "booking"
-        }),
-        Notification.create({
-          userId: booking.renterId,
-          userClerkId: booking.renterClerkId,
-          type: "rental_agreement_completed",
-          message: `Rental agreement for ${booking.productId?.title} has been successfully completed.`,
-          relatedId: booking._id,
-          relatedType: "booking"
-        })
-      ]);
+      // Create return completion notifications using NotificationService
+      await NotificationService.createReturnCompletionNotification({
+        ownerId: booking.ownerClerkId,
+        renterId: booking.renterClerkId,
+        productTitle: booking.productId.title,
+        bookingId: booking._id,
+        returnDate: booking.returnDate
+      });
       
       // Send email notifications
       try {
@@ -1284,6 +1327,18 @@ export const verifyReturnOTP = async (req, res) => {
         booking,
         lateFee: lateFee,
         isLate: isLate
+      });
+    }
+    
+    // Send notification for single-party verification
+    if (!otpRecord.ownerVerified || !otpRecord.renterVerified) {
+      await NotificationService.createReturnVerificationNotification({
+        ownerId: booking.ownerClerkId,
+        renterId: booking.renterClerkId,
+        productTitle: booking.productId.title,
+        bookingId: booking._id,
+        verifiedBy: userType,
+        waitingFor: userType === 'owner' ? 'renter' : 'owner'
       });
     }
     
