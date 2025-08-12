@@ -318,7 +318,7 @@ const Dashboard = () => {
         </div>
 
         {/* Enhanced Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="dashboard-overview grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-gradient-to-br from-white to-emerald-50 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-emerald-200 hover:shadow-xl transition-all duration-300 group">
             <div className="flex items-center justify-between">
               <div>

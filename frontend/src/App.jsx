@@ -47,6 +47,9 @@ import AnimationDemo from './pages/AnimationDemo'
 import { useAuth, useNotifications } from './hooks/useRedux'
 import { getUnreadCount } from './app/features/notificationSlice'
 
+// Import Tutorial System
+import TutorialProvider from './components/Tutorial/TutorialProvider'
+
 // Router Config
 const router = createBrowserRouter([
   {
@@ -73,43 +76,43 @@ const router = createBrowserRouter([
       </SignedIn>
     )
   },
-  {
-    path: '/products',
-    element: (
-      <SignedIn>
-        <Products />
-      </SignedIn>
-    )
-  },
-  {
-    path: '/browse-products',
-    element: (
-      <SignedIn>
-        <BrowseProducts />
-      </SignedIn>
-    )
-  },
-  {
-    path: '/orders',
-    element: (
-      <SignedIn>
-        <Orders />
-      </SignedIn>
-    )
-  },
-  {
-    path: '/orders/new',
-    element: (
-      <SignedIn>
-        <RentalOrderForm />
-      </SignedIn>
-    )
-  },
-  {
-    path: '/orders/:orderId',
-    element: (
-      <SignedIn>
-        <BookingDetails />
+      {
+        path: 'products',
+        element: (
+          <SignedIn>
+            <Products />
+          </SignedIn>
+        )
+      },
+      {
+        path: 'browse-products',
+        element: (
+          <SignedIn>
+            <BrowseProducts />
+          </SignedIn>
+        )
+      },
+      {
+        path: 'orders',
+        element: (
+          <SignedIn>
+            <Orders />
+          </SignedIn>
+        )
+      },
+      {
+        path: 'orders/new',
+        element: (
+          <SignedIn>
+            <RentalOrderForm />
+          </SignedIn>
+        )
+      },
+      {
+        path: 'orders/:orderId',
+        element: (
+          <SignedIn>
+            <BookingDetails />
       </SignedIn>
     )
   },
@@ -376,19 +379,21 @@ function App() {
   return (
     <>
       <ClerkUserSync />
-      <div className="min-h-screen bg-gray-50">
-        <RouterProvider router={router} />
-        
-        {/* Toast Notification */}
-        {showToast && (
-          <div className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg animate-bounce">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🔔</span>
-              <span>{toastMessage}</span>
+      <TutorialProvider>
+        <div className="min-h-screen bg-gray-50">
+          <RouterProvider router={router} />
+          
+          {/* Toast Notification */}
+          {showToast && (
+            <div className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg animate-bounce">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🔔</span>
+                <span>{toastMessage}</span>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </TutorialProvider>
     </>
   )
 }

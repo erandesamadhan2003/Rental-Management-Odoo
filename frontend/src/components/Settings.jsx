@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Navbar from './Navbar'
+import TutorialHelp from './Tutorial/TutorialHelp'
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('general')
@@ -60,7 +61,8 @@ const Settings = () => {
     { id: 'rental', label: 'Rental', icon: '📦' },
     { id: 'notifications', label: 'Notifications', icon: '🔔' },
     { id: 'security', label: 'Security', icon: '🔒' },
-    { id: 'integrations', label: 'Integrations', icon: '🔗' }
+    { id: 'integrations', label: 'Integrations', icon: '🔗' },
+    { id: 'help', label: 'Help', icon: '❓' }
   ]
 
   const renderGeneralSettings = () => (
@@ -455,6 +457,101 @@ const Settings = () => {
     </div>
   )
 
+  const renderHelpSettings = () => (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold text-midnight-800 mb-4">Help & Support</h3>
+      
+      <div className="space-y-6">
+        <div className="border border-purple-200 rounded-lg p-6">
+          <h4 className="font-medium text-navy-700 mb-4">Quick Start Guide</h4>
+          <p className="text-navy-600 mb-4">
+            Take a guided tour of the system to learn about all the features and how to use them effectively.
+          </p>
+          <TutorialHelp />
+        </div>
+
+        <div className="border border-purple-200 rounded-lg p-6">
+          <h4 className="font-medium text-navy-700 mb-4">Documentation</h4>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium text-navy-700">User Guide</p>
+                <p className="text-sm text-navy-500">Complete guide for system users</p>
+              </div>
+              <button className="text-purple-600 hover:text-purple-700 font-medium text-sm">
+                View →
+              </button>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium text-navy-700">API Documentation</p>
+                <p className="text-sm text-navy-500">For developers and integrations</p>
+              </div>
+              <button className="text-purple-600 hover:text-purple-700 font-medium text-sm">
+                View →
+              </button>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium text-navy-700">FAQ</p>
+                <p className="text-sm text-navy-500">Frequently asked questions</p>
+              </div>
+              <button className="text-purple-600 hover:text-purple-700 font-medium text-sm">
+                View →
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="border border-purple-200 rounded-lg p-6">
+          <h4 className="font-medium text-navy-700 mb-4">Contact Support</h4>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium text-navy-700">Email Support</p>
+                <p className="text-sm text-navy-500">support@rental.com</p>
+              </div>
+              <button className="text-purple-600 hover:text-purple-700 font-medium text-sm">
+                Contact →
+              </button>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="font-medium text-navy-700">Live Chat</p>
+                <p className="text-sm text-navy-500">Get instant help</p>
+              </div>
+              <button className="text-purple-600 hover:text-purple-700 font-medium text-sm">
+                Start Chat →
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="border border-purple-200 rounded-lg p-6">
+          <h4 className="font-medium text-navy-700 mb-4">System Information</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-navy-500">Version</p>
+              <p className="font-medium text-navy-700">v2.1.0</p>
+            </div>
+            <div>
+              <p className="text-navy-500">Last Updated</p>
+              <p className="font-medium text-navy-700">Dec 2024</p>
+            </div>
+            <div>
+              <p className="text-navy-500">Database</p>
+              <p className="font-medium text-navy-700">Connected</p>
+            </div>
+            <div>
+              <p className="text-navy-500">Status</p>
+              <p className="font-medium text-green-600">All Systems Operational</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'general':
@@ -467,6 +564,8 @@ const Settings = () => {
         return renderSecuritySettings()
       case 'integrations':
         return renderIntegrationSettings()
+      case 'help':
+        return renderHelpSettings()
       default:
         return renderGeneralSettings()
     }
