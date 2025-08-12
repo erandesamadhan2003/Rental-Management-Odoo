@@ -1,632 +1,293 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import Navbar from './Navbar'
-import TutorialHelp from './Tutorial/TutorialHelp'
 
 const Settings = () => {
-  const [activeTab, setActiveTab] = useState('general')
-  const [settings, setSettings] = useState({
-    // General Settings
-    companyName: 'Rental Management System',
-    companyEmail: 'admin@rental.com',
-    companyPhone: '+1 (555) 123-4567',
-    companyAddress: '123 Business St, City, State 12345',
-    timezone: 'UTC-5',
-    currency: 'USD',
-    dateFormat: 'MM/DD/YYYY',
-    
-    // Rental Settings
-    defaultRentalDuration: '7',
-    maxRentalDuration: '30',
-    advancePaymentPercentage: '50',
-    securityDepositPercentage: '20',
-    lateFeePercentage: '5',
-    damageAssessmentEnabled: true,
-    autoApproveReturns: false,
-    requireSignature: true,
-    
-    // Notification Settings
-    emailNotifications: true,
-    smsNotifications: false,
-    reminderNotifications: true,
-    invoiceNotifications: true,
-    paymentNotifications: true,
-    
-    // Security Settings
-    requireTwoFactor: false,
-    sessionTimeout: '30',
-    passwordExpiry: '90',
-    maxLoginAttempts: '5',
-    
-    // Integration Settings
-    stripeEnabled: false,
-    paypalEnabled: false,
-    emailProvider: 'smtp',
-    smsProvider: 'twilio'
-  })
+  const [activeSection, setActiveSection] = useState(null)
+  const [showChatbot, setShowChatbot] = useState(false)
+  const [messages, setMessages] = useState([])
+  const [userInput, setUserInput] = useState('')
+  const [isTyping, setIsTyping] = useState(false)
+  const inputRef = useRef(null)
 
-  const handleSettingChange = (key, value) => {
-    setSettings(prev => ({
-      ...prev,
-      [key]: value
-    }))
+  // Focus input when chatbot opens
+  useEffect(() => {
+    if (showChatbot && inputRef.current) {
+      setTimeout(() => {
+        inputRef.current.focus()
+      }, 100)
+    }
+  }, [showChatbot])
+
+  // Common issues and responses for the chatbot
+  const botResponses = {
+    'login': 'To reset your password, go to the login page and click "Forgot Password". You\'ll receive an email with reset instructions.',
+    'password': 'To reset your password, go to the login page and click "Forgot Password". You\'ll receive an email with reset instructions.',
+    'booking': 'For booking issues, you can check your reservations in the "Orders" section. If you need to modify or cancel, look for the booking ID.',
+    'payment': 'Payment issues can be resolved by checking your payment method in "Your Account". Make sure your card details are up to date.',
+    'cancel': 'To cancel a booking, go to "Orders", find your reservation, and click "Cancel Booking". Refund policy applies.',
+    'refund': 'Refunds typically take 3-5 business days to process. You can track refund status in your account under "Orders".',
+    'property': 'For property-related questions, check the property details page or contact the property owner directly.',
+    'account': 'Account settings can be managed in "Your Account" section where you can update personal information.',
+    'default': 'I couldn\'t find a specific answer to your question. Let me connect you with a human agent who can better assist you.'
   }
 
-  const handleSaveSettings = () => {
-    // Here you would typically save to backend
-    alert('Settings saved successfully!')
+  const handleYourAccount = () => {
+    alert('Opening Your Account settings...')
   }
 
-  const tabs = [
-    { id: 'general', label: 'General', icon: '⚙️' },
-    { id: 'rental', label: 'Rental', icon: '📦' },
-    { id: 'notifications', label: 'Notifications', icon: '🔔' },
-    { id: 'security', label: 'Security', icon: '🔒' },
-    { id: 'integrations', label: 'Integrations', icon: '🔗' },
-    { id: 'help', label: 'Help', icon: '❓' }
-  ]
-
-  const renderGeneralSettings = () => (
-    <div className="space-y-6">
-      <h3 className="text-xl font-semibold text-midnight-800 mb-4">Company Information</h3>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Company Name</label>
-          <input
-            type="text"
-            value={settings.companyName}
-            onChange={(e) => handleSettingChange('companyName', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Email</label>
-          <input
-            type="email"
-            value={settings.companyEmail}
-            onChange={(e) => handleSettingChange('companyEmail', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Phone</label>
-          <input
-            type="tel"
-            value={settings.companyPhone}
-            onChange={(e) => handleSettingChange('companyPhone', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Timezone</label>
-          <select
-            value={settings.timezone}
-            onChange={(e) => handleSettingChange('timezone', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          >
-            <option value="UTC-5">UTC-5 (Eastern)</option>
-            <option value="UTC-6">UTC-6 (Central)</option>
-            <option value="UTC-7">UTC-7 (Mountain)</option>
-            <option value="UTC-8">UTC-8 (Pacific)</option>
-          </select>
-        </div>
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium text-navy-700 mb-2">Address</label>
-        <textarea
-          value={settings.companyAddress}
-          onChange={(e) => handleSettingChange('companyAddress', e.target.value)}
-          rows={3}
-          className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-        />
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Currency</label>
-          <select
-            value={settings.currency}
-            onChange={(e) => handleSettingChange('currency', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          >
-            <option value="USD">USD ($)</option>
-            <option value="EUR">EUR (€)</option>
-            <option value="GBP">GBP (£)</option>
-            <option value="CAD">CAD (C$)</option>
-          </select>
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Date Format</label>
-          <select
-            value={settings.dateFormat}
-            onChange={(e) => handleSettingChange('dateFormat', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          >
-            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-          </select>
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderRentalSettings = () => (
-    <div className="space-y-6">
-      <h3 className="text-xl font-semibold text-midnight-800 mb-4">Rental Policies</h3>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Default Rental Duration (days)</label>
-          <input
-            type="number"
-            value={settings.defaultRentalDuration}
-            onChange={(e) => handleSettingChange('defaultRentalDuration', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Maximum Rental Duration (days)</label>
-          <input
-            type="number"
-            value={settings.maxRentalDuration}
-            onChange={(e) => handleSettingChange('maxRentalDuration', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Advance Payment (%)</label>
-          <input
-            type="number"
-            value={settings.advancePaymentPercentage}
-            onChange={(e) => handleSettingChange('advancePaymentPercentage', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Security Deposit (%)</label>
-          <input
-            type="number"
-            value={settings.securityDepositPercentage}
-            onChange={(e) => handleSettingChange('securityDepositPercentage', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Late Fee (%)</label>
-          <input
-            type="number"
-            value={settings.lateFeePercentage}
-            onChange={(e) => handleSettingChange('lateFeePercentage', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          />
-        </div>
-      </div>
-      
-      <div className="space-y-4">
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="damageAssessment"
-            checked={settings.damageAssessmentEnabled}
-            onChange={(e) => handleSettingChange('damageAssessmentEnabled', e.target.checked)}
-            className="mr-3 rounded text-purple-600 focus:ring-purple-500"
-          />
-          <label htmlFor="damageAssessment" className="text-navy-700">Enable Damage Assessment</label>
-        </div>
-        
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="autoApprove"
-            checked={settings.autoApproveReturns}
-            onChange={(e) => handleSettingChange('autoApproveReturns', e.target.checked)}
-            className="mr-3 rounded text-purple-600 focus:ring-purple-500"
-          />
-          <label htmlFor="autoApprove" className="text-navy-700">Auto-approve Returns</label>
-        </div>
-        
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="requireSignature"
-            checked={settings.requireSignature}
-            onChange={(e) => handleSettingChange('requireSignature', e.target.checked)}
-            className="mr-3 rounded text-purple-600 focus:ring-purple-500"
-          />
-          <label htmlFor="requireSignature" className="text-navy-700">Require Digital Signature</label>
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderNotificationSettings = () => (
-    <div className="space-y-6">
-      <h3 className="text-xl font-semibold text-midnight-800 mb-4">Notification Preferences</h3>
-      
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <label className="text-navy-700 font-medium">Email Notifications</label>
-            <p className="text-sm text-navy-500">Receive notifications via email</p>
-          </div>
-          <input
-            type="checkbox"
-            checked={settings.emailNotifications}
-            onChange={(e) => handleSettingChange('emailNotifications', e.target.checked)}
-            className="rounded text-purple-600 focus:ring-purple-500"
-          />
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <label className="text-navy-700 font-medium">SMS Notifications</label>
-            <p className="text-sm text-navy-500">Receive notifications via SMS</p>
-          </div>
-          <input
-            type="checkbox"
-            checked={settings.smsNotifications}
-            onChange={(e) => handleSettingChange('smsNotifications', e.target.checked)}
-            className="rounded text-purple-600 focus:ring-purple-500"
-          />
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <label className="text-navy-700 font-medium">Reminder Notifications</label>
-            <p className="text-sm text-navy-500">Rental due date reminders</p>
-          </div>
-          <input
-            type="checkbox"
-            checked={settings.reminderNotifications}
-            onChange={(e) => handleSettingChange('reminderNotifications', e.target.checked)}
-            className="rounded text-purple-600 focus:ring-purple-500"
-          />
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <label className="text-navy-700 font-medium">Invoice Notifications</label>
-            <p className="text-sm text-navy-500">New invoice alerts</p>
-          </div>
-          <input
-            type="checkbox"
-            checked={settings.invoiceNotifications}
-            onChange={(e) => handleSettingChange('invoiceNotifications', e.target.checked)}
-            className="rounded text-purple-600 focus:ring-purple-500"
-          />
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <label className="text-navy-700 font-medium">Payment Notifications</label>
-            <p className="text-sm text-navy-500">Payment received confirmations</p>
-          </div>
-          <input
-            type="checkbox"
-            checked={settings.paymentNotifications}
-            onChange={(e) => handleSettingChange('paymentNotifications', e.target.checked)}
-            className="rounded text-purple-600 focus:ring-purple-500"
-          />
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderSecuritySettings = () => (
-    <div className="space-y-6">
-      <h3 className="text-xl font-semibold text-midnight-800 mb-4">Security & Access</h3>
-      
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <label className="text-navy-700 font-medium">Two-Factor Authentication</label>
-            <p className="text-sm text-navy-500">Require 2FA for all users</p>
-          </div>
-          <input
-            type="checkbox"
-            checked={settings.requireTwoFactor}
-            onChange={(e) => handleSettingChange('requireTwoFactor', e.target.checked)}
-            className="rounded text-purple-600 focus:ring-purple-500"
-          />
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Session Timeout (minutes)</label>
-          <input
-            type="number"
-            value={settings.sessionTimeout}
-            onChange={(e) => handleSettingChange('sessionTimeout', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Password Expiry (days)</label>
-          <input
-            type="number"
-            value={settings.passwordExpiry}
-            onChange={(e) => handleSettingChange('passwordExpiry', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-navy-700 mb-2">Max Login Attempts</label>
-          <input
-            type="number"
-            value={settings.maxLoginAttempts}
-            onChange={(e) => handleSettingChange('maxLoginAttempts', e.target.value)}
-            className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          />
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderIntegrationSettings = () => (
-    <div className="space-y-6">
-      <h3 className="text-xl font-semibold text-midnight-800 mb-4">Third-Party Integrations</h3>
-      
-      <div className="space-y-6">
-        <div className="border border-purple-200 rounded-lg p-4">
-          <h4 className="font-medium text-navy-700 mb-3">Payment Gateways</h4>
-          
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center mr-3">
-                  <span className="text-blue-600 font-bold text-sm">S</span>
-                </div>
-                <div>
-                  <label className="text-navy-700 font-medium">Stripe</label>
-                  <p className="text-sm text-navy-500">Credit card processing</p>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={settings.stripeEnabled}
-                onChange={(e) => handleSettingChange('stripeEnabled', e.target.checked)}
-                className="rounded text-purple-600 focus:ring-purple-500"
-              />
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center mr-3">
-                  <span className="text-blue-600 font-bold text-sm">P</span>
-                </div>
-                <div>
-                  <label className="text-navy-700 font-medium">PayPal</label>
-                  <p className="text-sm text-navy-500">PayPal payments</p>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={settings.paypalEnabled}
-                onChange={(e) => handleSettingChange('paypalEnabled', e.target.checked)}
-                className="rounded text-purple-600 focus:ring-purple-500"
-              />
-            </div>
-          </div>
-        </div>
-        
-        <div className="border border-purple-200 rounded-lg p-4">
-          <h4 className="font-medium text-navy-700 mb-3">Communication</h4>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-navy-700 mb-2">Email Provider</label>
-              <select
-                value={settings.emailProvider}
-                onChange={(e) => handleSettingChange('emailProvider', e.target.value)}
-                className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              >
-                <option value="smtp">SMTP</option>
-                <option value="sendgrid">SendGrid</option>
-                <option value="mailgun">Mailgun</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-navy-700 mb-2">SMS Provider</label>
-              <select
-                value={settings.smsProvider}
-                onChange={(e) => handleSettingChange('smsProvider', e.target.value)}
-                className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              >
-                <option value="twilio">Twilio</option>
-                <option value="nexmo">Nexmo</option>
-                <option value="textmagic">TextMagic</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderHelpSettings = () => (
-    <div className="space-y-6">
-      <h3 className="text-xl font-semibold text-midnight-800 mb-4">Help & Support</h3>
-      
-      <div className="space-y-6">
-        <div className="border border-purple-200 rounded-lg p-6">
-          <h4 className="font-medium text-navy-700 mb-4">Quick Start Guide</h4>
-          <p className="text-navy-600 mb-4">
-            Take a guided tour of the system to learn about all the features and how to use them effectively.
-          </p>
-          <TutorialHelp />
-        </div>
-
-        <div className="border border-purple-200 rounded-lg p-6">
-          <h4 className="font-medium text-navy-700 mb-4">Documentation</h4>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <p className="font-medium text-navy-700">User Guide</p>
-                <p className="text-sm text-navy-500">Complete guide for system users</p>
-              </div>
-              <button className="text-purple-600 hover:text-purple-700 font-medium text-sm">
-                View →
-              </button>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <p className="font-medium text-navy-700">API Documentation</p>
-                <p className="text-sm text-navy-500">For developers and integrations</p>
-              </div>
-              <button className="text-purple-600 hover:text-purple-700 font-medium text-sm">
-                View →
-              </button>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <p className="font-medium text-navy-700">FAQ</p>
-                <p className="text-sm text-navy-500">Frequently asked questions</p>
-              </div>
-              <button className="text-purple-600 hover:text-purple-700 font-medium text-sm">
-                View →
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="border border-purple-200 rounded-lg p-6">
-          <h4 className="font-medium text-navy-700 mb-4">Contact Support</h4>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <p className="font-medium text-navy-700">Email Support</p>
-                <p className="text-sm text-navy-500">support@rental.com</p>
-              </div>
-              <button className="text-purple-600 hover:text-purple-700 font-medium text-sm">
-                Contact →
-              </button>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <p className="font-medium text-navy-700">Live Chat</p>
-                <p className="text-sm text-navy-500">Get instant help</p>
-              </div>
-              <button className="text-purple-600 hover:text-purple-700 font-medium text-sm">
-                Start Chat →
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="border border-purple-200 rounded-lg p-6">
-          <h4 className="font-medium text-navy-700 mb-4">System Information</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-navy-500">Version</p>
-              <p className="font-medium text-navy-700">v2.1.0</p>
-            </div>
-            <div>
-              <p className="text-navy-500">Last Updated</p>
-              <p className="font-medium text-navy-700">Dec 2024</p>
-            </div>
-            <div>
-              <p className="text-navy-500">Database</p>
-              <p className="font-medium text-navy-700">Connected</p>
-            </div>
-            <div>
-              <p className="text-navy-500">Status</p>
-              <p className="font-medium text-green-600">All Systems Operational</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'general':
-        return renderGeneralSettings()
-      case 'rental':
-        return renderRentalSettings()
-      case 'notifications':
-        return renderNotificationSettings()
-      case 'security':
-        return renderSecuritySettings()
-      case 'integrations':
-        return renderIntegrationSettings()
-      case 'help':
-        return renderHelpSettings()
-      default:
-        return renderGeneralSettings()
+  const handleCustomerService = () => {
+    setShowChatbot(true)
+    if (messages.length === 0) {
+      setMessages([
+        {
+          type: 'bot',
+          text: 'Hi! I\'m your virtual assistant. I can help with login issues, bookings, payments, cancellations, and more. What can I help you with today?',
+          timestamp: new Date()
+        }
+      ])
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-beige-50 via-purple-50 to-navy-50">
-      <Navbar />
+  const handleSignOut = () => {
+    if (confirm('Are you sure you want to sign out?')) {
+      alert('Signing out...')
+      // Add sign out logic here
+    }
+  }
+
+  const sendMessage = () => {
+    if (!userInput.trim() || isTyping) return
+
+    const newUserMessage = {
+      type: 'user',
+      text: userInput,
+      timestamp: new Date()
+    }
+
+    setMessages(prev => [...prev, newUserMessage])
+    setUserInput('')
+    setIsTyping(true)
+
+    // Keep focus on input after sending
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus()
+      }
+    }, 50)
+
+    // Simulate bot typing delay
+    setTimeout(() => {
+      const botResponse = generateBotResponse(userInput.toLowerCase())
+      const newBotMessage = {
+        type: 'bot',
+        text: botResponse,
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, newBotMessage])
+      setIsTyping(false)
       
-      <div className="container mx-auto px-6 py-8">
-        <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-md border border-purple-200">
-          {/* Header */}
-          <div className="border-b border-purple-200 p-6">
-            <h1 className="text-3xl font-bold text-midnight-800">Settings</h1>
-            <p className="text-navy-600 mt-2">Configure your rental management system</p>
-          </div>
+      // Refocus input after bot response
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus()
+        }
+      }, 100)
+    }, 1500)
+  }
 
-          {/* Tabs */}
-          <div className="border-b border-purple-200">
-            <nav className="flex space-x-8 px-6">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-purple-500 text-purple-600'
-                      : 'border-transparent text-navy-500 hover:text-navy-700 hover:border-navy-300'
-                  }`}
-                >
-                  <span className="mr-2">{tab.icon}</span>
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
-          </div>
+  const generateBotResponse = (input) => {
+    // Check for keywords in user input
+    for (const [keyword, response] of Object.entries(botResponses)) {
+      if (keyword !== 'default' && input.includes(keyword)) {
+        return response
+      }
+    }
+    
+    // If no keyword matches, return default response to connect to agent
+    return botResponses.default
+  }
 
-          {/* Content */}
-          <div className="p-6">
-            {renderTabContent()}
-          </div>
+  const connectToAgent = () => {
+    const agentMessage = {
+      type: 'system',
+      text: '🔄 Connecting you to a human agent... Please wait while we find an available agent to assist you.',
+      timestamp: new Date()
+    }
+    setMessages(prev => [...prev, agentMessage])
+    
+    setTimeout(() => {
+      const agentConnectedMessage = {
+        type: 'agent',
+        text: 'Hello! I\'m Sarah, a customer service agent. I\'ve reviewed your conversation and I\'m here to help. How can I assist you today?',
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, agentConnectedMessage])
+    }, 3000)
+  }
 
-          {/* Footer */}
-          <div className="border-t border-purple-200 p-6 bg-purple-50/50">
-            <div className="flex justify-end space-x-4">
-              <button
-                onClick={() => window.location.reload()}
-                className="px-6 py-2 border border-purple-200 text-navy-600 rounded-lg hover:bg-purple-50 transition-colors"
-              >
-                Reset
-              </button>
-              <button
-                onClick={handleSaveSettings}
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Save Settings
-              </button>
+  const ChatbotModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 h-96 flex flex-col">
+        {/* Chat Header */}
+        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-blue-600 text-white rounded-t-lg">
+          <div className="flex items-center space-x-2">
+            <span className="text-lg">🤖</span>
+            <h3 className="font-semibold">Customer Support</h3>
+          </div>
+          <button 
+            onClick={() => setShowChatbot(false)}
+            className="text-white hover:text-gray-200"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {messages.map((message, index) => (
+            <div key={index} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-xs px-3 py-2 rounded-lg ${
+                message.type === 'user' 
+                  ? 'bg-blue-600 text-white' 
+                  : message.type === 'agent'
+                  ? 'bg-green-100 text-gray-800 border border-green-200'
+                  : message.type === 'system'
+                  ? 'bg-yellow-100 text-gray-800 border border-yellow-200'
+                  : 'bg-gray-100 text-gray-800'
+              }`}>
+                {message.type === 'bot' && <span className="text-sm">🤖 </span>}
+                {message.type === 'agent' && <span className="text-sm">👨‍💻 </span>}
+                <span className="text-sm">{message.text}</span>
+                {message.text === botResponses.default && (
+                  <button 
+                    onClick={connectToAgent}
+                    className="block mt-2 text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
+                  >
+                    Connect to Agent
+                  </button>
+                )}
+              </div>
             </div>
+          ))}
+          {isTyping && (
+            <div className="flex justify-start">
+              <div className="bg-gray-100 text-gray-800 px-3 py-2 rounded-lg">
+                <span className="text-sm">🤖 Typing...</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input Area */}
+        <div className="p-4 border-t border-gray-200">
+          <div className="flex space-x-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  sendMessage()
+                }
+              }}
+              placeholder="Type your message..."
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus
+              disabled={isTyping}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={isTyping || !userInput.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Send
+            </button>
           </div>
         </div>
       </div>
+    </div>
+  )
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Navbar />
+      
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          
+          {/* Header */}
+          <div className="p-6 border-b border-gray-200">
+            <h1 className="text-2xl font-bold text-gray-800">Help & Settings</h1>
+          </div>
+
+          {/* Menu Items */}
+          <div className="divide-y divide-gray-200">
+            
+            {/* Your Account */}
+            <div 
+              onClick={handleYourAccount}
+              className="p-6 hover:bg-gray-50 cursor-pointer transition-colors flex items-center justify-between group"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <span className="text-blue-600 text-lg">👤</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-800 group-hover:text-blue-600">Your Account</h3>
+                  <p className="text-sm text-gray-500">Manage your personal information and preferences</p>
+                </div>
+              </div>
+              <svg className="w-5 h-5 text-gray-400 group-hover:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </div>
+
+            {/* Customer Service */}
+            <div 
+              onClick={handleCustomerService}
+              className="p-6 hover:bg-gray-50 cursor-pointer transition-colors flex items-center justify-between group"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <span className="text-green-600 text-lg">💬</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-800 group-hover:text-green-600">Customer Service</h3>
+                  <p className="text-sm text-gray-500">Chat with our AI assistant or connect to a human agent</p>
+                </div>
+              </div>
+              <svg className="w-5 h-5 text-gray-400 group-hover:text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </div>
+
+            {/* Sign Out */}
+            <div 
+              onClick={handleSignOut}
+              className="p-6 hover:bg-red-50 cursor-pointer transition-colors flex items-center justify-between group"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                  <span className="text-red-600 text-lg">🚪</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-800 group-hover:text-red-600">Sign Out</h3>
+                  <p className="text-sm text-gray-500">Sign out of your account</p>
+                </div>
+              </div>
+              <svg className="w-5 h-5 text-gray-400 group-hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* Chatbot Modal */}
+      {showChatbot && <ChatbotModal />}
     </div>
   )
 }
