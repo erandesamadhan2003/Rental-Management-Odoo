@@ -192,6 +192,305 @@ class NotificationService {
       console.error('Error creating pickup scheduled notification:', error)
     }
   }
+
+  // Create pickup request notification (when renter requests pickup)
+  static async createPickupRequestNotification(requestData) {
+    try {
+      const { ownerId, renterId, productTitle, bookingId, requestedBy, pickupLocation } = requestData
+      
+      console.log('Creating pickup request notification for:', { ownerId, renterId, productTitle, bookingId })
+      
+      // Get user details
+      const renter = await User.findOne({ clerkId: renterId })
+      const owner = await User.findOne({ clerkId: ownerId })
+      
+      if (!owner) {
+        console.error('Owner not found with clerkId:', ownerId)
+        return
+      }
+      
+      const notification = new Notification({
+        userId: owner._id,
+        userClerkId: ownerId,
+        type: 'pickup_requested',
+        message: `${renter?.firstName || 'Renter'} has requested pickup for "${productTitle}". Please verify the pickup.`,
+        relatedId: bookingId,
+        relatedType: 'booking',
+        metadata: {
+          productTitle,
+          renterName: renter?.firstName || 'Unknown',
+          renterId,
+          bookingId,
+          pickupLocation,
+          requestedBy,
+          actionRequired: true,
+          actions: ['verify_pickup']
+        }
+      })
+      
+      const savedNotification = await notification.save()
+      console.log('Pickup request notification created:', savedNotification._id)
+      return savedNotification
+    } catch (error) {
+      console.error('Error creating pickup request notification:', error)
+      throw error
+    }
+  }
+
+  // Create pickup initiation notification (when owner initiates pickup)
+  static async createPickupInitiationNotification(initiationData) {
+    try {
+      const { renterId, ownerId, productTitle, bookingId, pickupLocation } = initiationData
+      
+      console.log('Creating pickup initiation notification for:', { renterId, ownerId, productTitle, bookingId })
+      
+      // Get user details
+      const renter = await User.findOne({ clerkId: renterId })
+      const owner = await User.findOne({ clerkId: ownerId })
+      
+      if (!renter) {
+        console.error('Renter not found with clerkId:', renterId)
+        return
+      }
+      
+      const notification = new Notification({
+        userId: renter._id,
+        userClerkId: renterId,
+        type: 'pickup_initiated',
+        message: `${owner?.firstName || 'Owner'} has initiated pickup for "${productTitle}". Please be ready for pickup verification.`,
+        relatedId: bookingId,
+        relatedType: 'booking',
+        metadata: {
+          productTitle,
+          ownerName: owner?.firstName || 'Owner',
+          ownerId,
+          bookingId,
+          pickupLocation,
+          actionRequired: true,
+          actions: ['verify_pickup']
+        }
+      })
+      
+      const savedNotification = await notification.save()
+      console.log('Pickup initiation notification created:', savedNotification._id)
+      return savedNotification
+    } catch (error) {
+      console.error('Error creating pickup initiation notification:', error)
+      throw error
+    }
+  }
+
+  // Create pickup verification notification (when one party verifies)
+  static async createPickupVerificationNotification(verificationData) {
+    try {
+      const { targetUserId, targetUserClerkId, verifiedBy, productTitle, bookingId, waitingFor } = verificationData
+      
+      console.log('Creating pickup verification notification for:', { targetUserId, targetUserClerkId, verifiedBy, productTitle })
+      
+      const notification = new Notification({
+        userId: targetUserId,
+        userClerkId: targetUserClerkId,
+        type: 'pickup_verification_pending',
+        message: `${verifiedBy} has verified pickup for "${productTitle}". Waiting for your verification to complete the pickup process.`,
+        relatedId: bookingId,
+        relatedType: 'booking',
+        metadata: {
+          productTitle,
+          verifiedBy,
+          waitingFor,
+          bookingId,
+          actionRequired: true,
+          actions: ['verify_pickup']
+        }
+      })
+      
+      const savedNotification = await notification.save()
+      console.log('Pickup verification notification created:', savedNotification._id)
+      return savedNotification
+    } catch (error) {
+      console.error('Error creating pickup verification notification:', error)
+      throw error
+    }
+  }
+
+  // Create return request notification (when renter requests return or owner initiates)
+  static async createReturnRequestNotification(returnData) {
+    try {
+      const { ownerId, renterId, productTitle, bookingId, requestedBy, dropLocation } = returnData
+      
+      console.log('Creating return request notification for:', { ownerId, renterId, productTitle, requestedBy })
+      
+      const targetUserId = requestedBy === 'renter' ? ownerId : renterId
+      const requesterName = requestedBy === 'renter' ? 'Renter' : 'Owner'
+      
+      const notification = new Notification({
+        userId: targetUserId,
+        userClerkId: targetUserId,
+        type: 'return_requested',
+        message: `${requesterName} has requested return for "${productTitle}". Please coordinate for return process.`,
+        relatedId: bookingId,
+        relatedType: 'booking',
+        metadata: {
+          productTitle,
+          requestedBy,
+          dropLocation,
+          bookingId,
+          actionRequired: true,
+          actions: ['initiate_return']
+        }
+      })
+      
+      const savedNotification = await notification.save()
+      console.log('Return request notification created:', savedNotification._id)
+      return savedNotification
+    } catch (error) {
+      console.error('Error creating return request notification:', error)
+      throw error
+    }
+  }
+
+  // Create return initiation notification (when owner starts return process)
+  static async createReturnInitiationNotification(returnData) {
+    try {
+      const { renterId, ownerId, productTitle, bookingId, dropLocation } = returnData
+      
+      console.log('Creating return initiation notification for renter:', { renterId, productTitle })
+      
+      const renter = await User.findOne({ clerkId: renterId })
+      const owner = await User.findOne({ clerkId: ownerId })
+      
+      if (!renter) {
+        console.error('Renter not found with clerkId:', renterId)
+        return
+      }
+      
+      const notification = new Notification({
+        userId: renter._id,
+        userClerkId: renterId,
+        type: 'return_initiated',
+        message: `${owner?.firstName || 'Owner'} has initiated return process for "${productTitle}". Please be ready for return verification.`,
+        relatedId: bookingId,
+        relatedType: 'booking',
+        metadata: {
+          productTitle,
+          ownerName: owner?.firstName || 'Owner',
+          ownerId,
+          bookingId,
+          dropLocation,
+          actionRequired: true,
+          actions: ['verify_return']
+        }
+      })
+      
+      const savedNotification = await notification.save()
+      console.log('Return initiation notification created:', savedNotification._id)
+      return savedNotification
+    } catch (error) {
+      console.error('Error creating return initiation notification:', error)
+      throw error
+    }
+  }
+
+  // Create return verification notification (when one party verifies)
+  static async createReturnVerificationNotification(verificationData) {
+    try {
+      const { ownerId, renterId, verifiedBy, productTitle, bookingId, waitingFor } = verificationData
+      
+      console.log('Creating return verification notification for:', { ownerId, renterId, verifiedBy, waitingFor })
+      
+      const targetUserClerkId = waitingFor === 'owner' ? ownerId : renterId
+      const targetUser = await User.findOne({ clerkId: targetUserClerkId })
+      
+      if (!targetUser) {
+        console.error('Target user not found with clerkId:', targetUserClerkId)
+        return
+      }
+      
+      const notification = new Notification({
+        userId: targetUser._id,
+        userClerkId: targetUserClerkId,
+        type: 'return_verification_pending',
+        message: `${verifiedBy} has verified return for "${productTitle}". Waiting for your verification to complete the return process.`,
+        relatedId: bookingId,
+        relatedType: 'booking',
+        metadata: {
+          productTitle,
+          verifiedBy,
+          waitingFor,
+          bookingId,
+          actionRequired: true,
+          actions: ['verify_return']
+        }
+      })
+      
+      const savedNotification = await notification.save()
+      console.log('Return verification notification created:', savedNotification._id)
+      return savedNotification
+    } catch (error) {
+      console.error('Error creating return verification notification:', error)
+      throw error
+    }
+  }
+
+  // Create return completion notification (when both parties verify)
+  static async createReturnCompletionNotification(completionData) {
+    try {
+      const { ownerId, renterId, productTitle, bookingId, returnDate } = completionData
+      
+      console.log('Creating return completion notifications for:', { ownerId, renterId, productTitle })
+      
+      const owner = await User.findOne({ clerkId: ownerId })
+      const renter = await User.findOne({ clerkId: renterId })
+      
+      const notifications = []
+      
+      // Notification for owner
+      if (owner) {
+        const ownerNotification = new Notification({
+          userId: owner._id,
+          userClerkId: ownerId,
+          type: 'return_completed',
+          message: `Return completed for "${productTitle}". Rental agreement has been successfully finished.`,
+          relatedId: bookingId,
+          relatedType: 'booking',
+          metadata: {
+            productTitle,
+            returnDate,
+            bookingId,
+            role: 'owner',
+            completionStatus: 'success'
+          }
+        })
+        notifications.push(await ownerNotification.save())
+      }
+      
+      // Notification for renter
+      if (renter) {
+        const renterNotification = new Notification({
+          userId: renter._id,
+          userClerkId: renterId,
+          type: 'return_completed',
+          message: `Return completed for "${productTitle}". Thank you for using our rental service!`,
+          relatedId: bookingId,
+          relatedType: 'booking',
+          metadata: {
+            productTitle,
+            returnDate,
+            bookingId,
+            role: 'renter',
+            completionStatus: 'success'
+          }
+        })
+        notifications.push(await renterNotification.save())
+      }
+      
+      console.log('Return completion notifications created:', notifications.length)
+      return notifications
+    } catch (error) {
+      console.error('Error creating return completion notification:', error)
+      throw error
+    }
+  }
   
   // Create drop-off scheduled notification
   static async createDropScheduledNotification(scheduleData) {

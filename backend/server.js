@@ -25,6 +25,18 @@ import testRoutes from './routes/test.routes.js';
 import rentalReminderCron from './services/rentalReminder.cron.js';
 import { initializeDeadlineMonitoring } from './controllers/booking.controller.js';
 
+// Import models to register schemas
+import './models/user.js';
+import './models/product.model.js';
+import './models/booking.model.js';
+import './models/payment.model.js';
+import './models/notification.model.js';
+import './models/otp.model.js';
+import './models/review.model.js';
+import './models/report.model.js';
+import './models/pricelist.model.js';
+import './models/invoice.model.js';
+
 // Load environment variables
 dotenv.config();
 

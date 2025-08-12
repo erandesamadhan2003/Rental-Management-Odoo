@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import Navbar from './Navbar'
 import OTPVerification from './OTPVerification'
+import OrderTimeline from './OrderTimeline'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
 
@@ -17,10 +18,26 @@ const BookingDetails = () => {
   const [showOTPModal, setShowOTPModal] = useState(false)
   const [otpType, setOtpType] = useState(null) // 'pickup' or 'return'
   const [userRole, setUserRole] = useState(null) // 'owner' or 'renter'
+  const [invoice, setInvoice] = useState(null)
+  const [debugInfo, setDebugInfo] = useState(null)
 
   useEffect(() => {
     fetchBookingDetails()
+    fetchInvoiceDetails()
   }, [orderId])
+
+  const fetchInvoiceDetails = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/invoices/booking/${orderId}`)
+      const data = await response.json()
+      
+      if (data.success) {
+        setInvoice(data.invoice)
+      }
+    } catch (error) {
+      console.error('Error fetching invoice details:', error)
+    }
+  }
 
   const fetchBookingDetails = async () => {
     try {
@@ -51,6 +68,54 @@ const BookingDetails = () => {
   const handleOTPVerification = (type) => {
     setOtpType(type)
     setShowOTPModal(true)
+  }
+
+  const testOTPGeneration = async (type) => {
+    try {
+      console.log('Testing OTP generation for:', { type, bookingId: orderId, userRole })
+      
+      const endpoint = type === 'pickup' 
+        ? `/bookings/${orderId}/delivery/generate-otp`
+        : `/bookings/${orderId}/return/generate-otp`
+      
+      console.log('Calling endpoint:', `${API_BASE_URL}${endpoint}`)
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userType: userRole })
+      })
+      
+      console.log('Response status:', response.status)
+      const data = await response.json()
+      console.log('Response data:', data)
+      
+      setDebugInfo({
+        endpoint,
+        status: response.status,
+        data,
+        userRole,
+        bookingStatus: booking?.status,
+        paymentStatus: booking?.paymentStatus
+      })
+      
+      if (data.success) {
+        alert('OTP generated successfully! Check your email.')
+      } else {
+        alert(`Failed to generate OTP: ${data.message}`)
+      }
+    } catch (error) {
+      console.error('Error testing OTP generation:', error)
+      setDebugInfo({
+        error: error.message,
+        userRole,
+        bookingStatus: booking?.status,
+        paymentStatus: booking?.paymentStatus
+      })
+      alert(`Error: ${error.message}`)
+    }
   }
 
   const handleOTPSuccess = (result) => {
@@ -304,6 +369,24 @@ const BookingDetails = () => {
                     <span>Download Invoice</span>
                   </button>
                 )}
+
+                {/* Debug OTP Generation */}
+                {import.meta.env.DEV && (
+                  <>
+                    <button
+                      onClick={() => testOTPGeneration('pickup')}
+                      className="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 flex items-center space-x-2"
+                    >
+                      <span>🔧 Test Pickup OTP</span>
+                    </button>
+                    <button
+                      onClick={() => testOTPGeneration('return')}
+                      className="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 flex items-center space-x-2"
+                    >
+                      <span>🔧 Test Return OTP</span>
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Status Messages */}
@@ -318,33 +401,48 @@ const BookingDetails = () => {
             </div>
 
             {/* Timeline */}
-            <div className="mt-8 border-t pt-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Timeline</h3>
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
-                  <span className="text-sm">Booking created: {new Date(booking.createdAt).toLocaleString()}</span>
-                </div>
-                {booking.paymentStatus === 'paid' && (
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
-                    <span className="text-sm">Payment completed</span>
-                  </div>
-                )}
-                {booking.deliveryDate && (
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
-                    <span className="text-sm">Pickup completed: {new Date(booking.deliveryDate).toLocaleString()}</span>
-                  </div>
-                )}
-                {booking.returnDate && (
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-gray-500 rounded-full mr-3"></div>
-                    <span className="text-sm">Return completed: {new Date(booking.returnDate).toLocaleString()}</span>
-                  </div>
-                )}
+            <OrderTimeline booking={booking} />
+
+            {/* Debug Information (only in development) */}
+            {debugInfo && import.meta.env.DEV && (
+              <div className="mt-8 border-t pt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Debug Information</h3>
+                <pre className="bg-gray-100 p-4 rounded text-xs overflow-auto">
+                  {JSON.stringify(debugInfo, null, 2)}
+                </pre>
               </div>
-            </div>
+            )}
+
+            {/* Invoice Details */}
+            {invoice && (
+              <div className="mt-8 border-t pt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Invoice Details</h3>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-gray-600">Invoice Number:</span>
+                      <span className="font-medium ml-2">{invoice.invoiceNumber}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Issue Date:</span>
+                      <span className="font-medium ml-2">{new Date(invoice.issueDate).toLocaleDateString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Due Date:</span>
+                      <span className="font-medium ml-2">{new Date(invoice.dueDate).toLocaleDateString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Status:</span>
+                      <span className={`px-2 py-1 rounded text-sm ml-2 ${
+                        invoice.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {invoice.status.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
